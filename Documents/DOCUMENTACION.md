@@ -61,7 +61,7 @@
 | IA Análisis | DeepSeek V3.2 | 🔲 Falta API key |
 | IA Backup | Google Gemini 1.5 Flash | 🔲 Falta API key |
 | Embeddings | HuggingFace (all-MiniLM-L6-v2) | 🔲 Falta API key |
-| Extensión | Chrome Extension Manifest V2 | ⚠️ MV2 deprecado |
+| Extensión | Chrome Extension Manifest V3 | ✅ Migrada |
 | Deploy | GitHub Actions → FTP (Hostinger) | ✅ Automático |
 | Auth | Supabase Auth (opcional) | 🔲 Futuro |
 
@@ -338,9 +338,9 @@ mejorasocialmedia/
 | Buyer Personas | `data/buyer-personas.js` | 8 perfiles argentinos |
 | Core INSSIST | `bg.js`, `ig-cs.js` | Funcionalidad base |
 
-### ⚠️ Bloqueador: Manifest V2
+### ⚠️ Nota: Manifest V3
 
-Chrome elimina soporte para MV2. Necesita migrar a V3.
+Extensión migrada a Manifest V3 (23/04/2026). Cambios: `action` reemplaza `browser_action`, `service_worker` reemplaza background persistente, CSP en formato objeto, `host_permissions` separados de `permissions`. Se agregó polyfill `chrome.browserAction → chrome.action` en bg.js.
 
 ---
 
@@ -468,17 +468,16 @@ Ejecutar `supabase/migrations/001_initial_schema.sql` en Supabase SQL Editor.
 | 5.2 | Reglas de éxito automáticas | success_rules table |
 | 5.3 | Sugerencias proactivas | "Los posts con emoji en hook rinden 2x" |
 
-### ETAPA 6: Limpieza Técnica (paralela)
-**Sin dependencia, puede hacerse en cualquier momento**
+### ETAPA 6: Limpieza Técnica ✅ COMPLETADA (23/04/2026)
 
-| # | Tarea | Notas |
+| # | Tarea | Estado |
 |---|---|---|
-| 6.1 | Migrar extensión a Manifest V3 | Urgente: Chrome eliminará V2 |
-| 6.2 | Activar `strictNullChecks` | Mejora calidad de tipos |
-| 6.3 | Agregar tests reales (Vitest) | Configurado pero vacío |
-| 6.4 | Limpiar archivos legacy de extensión | caption-helper.js, etc. |
-| 6.5 | Quitar lovable-tagger de dependencias | Innecesario en producción |
-| 6.6 | Actualizar browserslist | 10 meses desactualizado |
+| 6.1 | Migrar extensión a Manifest V3 | ✅ |
+| 6.2 | Activar `strictNullChecks` | ✅ |
+| 6.3 | Agregar tests reales (Vitest) — 21 tests | ✅ |
+| 6.4 | Limpiar archivos legacy de extensión | ✅ |
+| 6.5 | Quitar lovable-tagger de dependencias | ✅ |
+| 6.6 | Actualizar browserslist | ✅ |
 
 ### Timeline Consolidado
 
@@ -504,7 +503,7 @@ Total:   → ~4-5 semanas desde ETAPA 1
 | B1 | API keys no configuradas en Supabase | ⏳ Pablo | ETAPA 1.3 |
 | B2 | SQL schema no ejecutado | ⏳ Pablo | ETAPA 1.1 |
 | B3 | Edge Functions no deployadas | ⏳ Pablo | ETAPA 1.4 |
-| B4 | Manifest V2 deprecado | ⏳ Dev | ETAPA 6.1 |
+| B4 | Manifest V2 deprecado | ✅ Resuelto | ETAPA 6.1 |
 
 ### 🟡 Pendientes Alta Prioridad
 
@@ -596,6 +595,26 @@ Total:   → ~4-5 semanas desde ETAPA 1
 **Seguridad:**
 - ✅ .env protegido en .gitignore (Supabase keys no se commitean)
 - ✅ Archivos de workspace OpenClaw excluidos del repo
+
+---
+
+### 23/04/2026 — ETAPA 6: Limpieza Técnica ✅ COMPLETADA
+
+**Tareas completadas:**
+- ✅ 6.1 — Migración extensión a Manifest V3 (manifest.json reestructurado + polyfill bg.js)
+- ✅ 6.2 — `strictNullChecks` activado (tsconfig.json + tsconfig.app.json, sin errores)
+- ✅ 6.3 — Tests reales con Vitest (21 tests, todos pasando)
+  - AI service: 6 tests (callAI, startDialogue, embeddings, processDocument, searchVault)
+  - Supabase service: 5 tests (documents, dialogue, proposals, metrics, calendar APIs)
+  - Hook exports: 4 tests (useVault, useDialogue, useProposals, useMetrics)
+  - Dashboard page: 6 tests (rendering, stats, aprobaciones, calendario)
+- ✅ 6.4 — Archivos legacy de extensión eliminados (sesión anterior)
+- ✅ 6.5 — `lovable-tagger` eliminado de dependencias y vite.config.ts
+- ✅ 6.6 — Browserslist actualizado (caniuse-lite latest)
+- ✅ Guía de setup Supabase creada (`Documents/SUPABASE_SETUP.md`)
+- ✅ Build de producción verificado (3.21s, sin errores)
+
+**Commit:** `991ec45` — "ETAPA 6: Technical cleanup"
 
 ---
 
