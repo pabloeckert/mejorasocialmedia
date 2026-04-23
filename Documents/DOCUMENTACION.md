@@ -564,12 +564,38 @@ Total:   → ~4-5 semanas desde ETAPA 1
 - ✅ 3 bloqueadores resueltos (FTP, npm ci, secret scanning)
 - ✅ Documentación generada (14 archivos en docs/)
 
-### 23/04/2026 — Consolidación
+### 23/04/2026 — Consolidación + Optimización
 
+**Documentación:**
 - ✅ Análisis de estado real vs documentación
 - ✅ Documentación unificada en `Documents/DOCUMENTACION.md`
 - ✅ Plan por etapas (ETAPA 0-6) con dependencias y estimaciones
 - ✅ Identificación de 4 bloqueadores activos (todos requieren acceso a Supabase)
+
+**Frontend — Hooks React creados:**
+- ✅ `src/hooks/useVault.ts` — upload, list, delete documentos
+- ✅ `src/hooks/useDialogue.ts` — sesiones, mensajes, start, continue
+- ✅ `src/hooks/useProposals.ts` — list, pending, approve, reject, schedule
+- ✅ `src/hooks/useMetrics.ts` — calendario, métricas, reglas de éxito
+
+**Frontend — Páginas conectadas a datos reales:**
+- ✅ Dashboard — stats dinámicos, aprobaciones pendientes, calendario
+- ✅ Bóveda — upload real, búsqueda, eliminación, estado de procesamiento
+- ✅ Mesa de Diálogo — crear sesión con topic, dar feedback, ver estado
+- ✅ Configuración — selectores de proveedor/modelo/temperatura por agente
+- ✅ Index — redirección limpia a Dashboard
+
+**Limpieza técnica:**
+- ✅ Eliminados 4 archivos legacy de extensión (caption-helper, hashtag-packs, index-web-worker, sales-quick-replies)
+- ✅ Eliminado "Nuevo Documento de texto.txt"
+- ✅ README.md actualizado con stack y estructura actual
+- ✅ .gitignore: .env, .openclaw/, archivos workspace protegidos
+- ✅ index.html: removido TODO comment
+- ✅ Dependencias actualizadas (caniuse-lite, browserslist)
+
+**Seguridad:**
+- ✅ .env protegido en .gitignore (Supabase keys no se commitean)
+- ✅ Archivos de workspace OpenClaw excluidos del repo
 
 ---
 
