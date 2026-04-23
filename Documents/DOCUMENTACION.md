@@ -372,21 +372,24 @@ Crítico:    DeepSeek / deepseek-chat / temp 0.3
 - **Producción:** https://util.mejoraok.com/MejoraSM/
 - **Build:** `npm install --legacy-peer-deps && npm run build`
 
-### Backend (manual — pendiente)
+### Backend (en progreso)
 
 ```bash
+# ✅ Schema SQL ejecutado (23/04 22:35)
+# ⏳ Edge Functions deploy pendiente
 supabase functions deploy ai-gateway
 supabase functions deploy orchestrator
 supabase functions deploy vault-process
+
+# ⏳ Secrets pendientes
 supabase secrets set GROQ_API_KEY=xxx
 supabase secrets set DEEPSEEK_API_KEY=xxx
 supabase secrets set GEMINI_API_KEY=xxx
-supabase secrets set HF_API_KEY=xxx
 ```
 
-### Base de datos (manual — pendiente)
+### Base de datos ✅
 
-Ejecutar `supabase/migrations/001_initial_schema.sql` en Supabase SQL Editor.
+Schema ejecutado en Supabase SQL Editor (23/04 22:35). 9 tablas + RLS + vector search.
 
 ---
 
@@ -412,17 +415,17 @@ Ejecutar `supabase/migrations/001_initial_schema.sql` en Supabase SQL Editor.
 - [x] Analizar estado real vs documentado
 - [x] Crear plan por etapas
 
-### ETAPA 1: Activar Backend (requiere Pablo)
+### ETAPA 1: Activar Backend (en progreso — 23/04/2026)
 **Dependencia:** Acceso a Supabase dashboard
 **Tiempo estimado:** 1-2 horas
 
-| # | Tarea | Responsable | Notas |
+| # | Tarea | Responsable | Estado |
 |---|---|---|---|
-| 1.1 | Ejecutar SQL schema en Supabase | Pablo | Copiar `001_initial_schema.sql` en SQL Editor |
-| 1.2 | Crear bucket `vault` en Storage | Pablo | Privado |
-| 1.3 | Configurar API keys en Secrets | Pablo | Groq, DeepSeek, Gemini, HF |
-| 1.4 | Deploy Edge Functions | Pablo/AI | `supabase functions deploy` |
-| 1.5 | Verificar health check | Pablo/AI | Probar endpoints |
+| 1.1 | Ejecutar SQL schema en Supabase | Pablo | ✅ Success (23/04 22:35) |
+| 1.2 | Verificar bucket `vault` en Storage | Pablo | ⏳ En progreso |
+| 1.3 | Configurar API keys en Secrets | Pablo | 🔲 Pendiente (Groq, DeepSeek, Gemini) |
+| 1.4 | Deploy Edge Functions | Pablo | 🔲 Pendiente |
+| 1.5 | Verificar health check | Pablo/AI | 🔲 Pendiente |
 
 ### ETAPA 2: Conectar Frontend
 **Dependencia:** ETAPA 1 completa
@@ -482,13 +485,13 @@ Ejecutar `supabase/migrations/001_initial_schema.sql` en Supabase SQL Editor.
 ### Timeline Consolidado
 
 ```
-ETAPA 0  → ✅ Hoy (23/04)
-ETAPA 1  → Cuando Pablo tenga 1-2h disponibles
+ETAPA 0  → ✅ 23/04
+ETAPA 1  → 🔄 En progreso (23/04 — schema ejecutado, pendientes secrets + deploy)
 ETAPA 2  → Inmediatamente después de ETAPA 1
 ETAPA 3  → Semana siguiente
 ETAPA 4  → +1 semana
 ETAPA 5  → +1 semana
-ETAPA 6  → En paralelo, cuando haya tiempo
+ETAPA 6  → ✅ 23/04
 Total:   → ~4-5 semanas desde ETAPA 1
 ```
 
@@ -501,7 +504,7 @@ Total:   → ~4-5 semanas desde ETAPA 1
 | ID | Descripción | Estado | Acción |
 |---|---|---|---|
 | B1 | API keys no configuradas en Supabase | ⏳ Pablo | ETAPA 1.3 |
-| B2 | SQL schema no ejecutado | ⏳ Pablo | ETAPA 1.1 |
+| B2 | SQL schema no ejecutado | ✅ Resuelto (23/04 22:35) | ETAPA 1.1 |
 | B3 | Edge Functions no deployadas | ⏳ Pablo | ETAPA 1.4 |
 | B4 | Manifest V2 deprecado | ✅ Resuelto | ETAPA 6.1 |
 
@@ -615,6 +618,17 @@ Total:   → ~4-5 semanas desde ETAPA 1
 - ✅ Build de producción verificado (3.21s, sin errores)
 
 **Commit:** `991ec45` — "ETAPA 6: Technical cleanup"
+**Commit:** `e7a0f9e` — "chore: code splitting + doc updates"
+
+### 23/04/2026 — ETAPA 1: Activar Backend (en progreso)
+
+- ✅ 1.1 — SQL schema ejecutado en Supabase SQL Editor (Success, 22:35)
+- ⏳ 1.2 — Verificar bucket `vault` en Storage
+- 🔲 1.3 — Configurar API key secrets (Groq, DeepSeek, Gemini)
+- 🔲 1.4 — Deploy Edge Functions
+- 🔲 1.5 — Health check
+
+**Guía de setup:** `Documents/SUPABASE_SETUP.md`
 
 ---
 
