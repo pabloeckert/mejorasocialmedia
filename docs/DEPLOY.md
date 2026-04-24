@@ -26,10 +26,10 @@ cd MejoraINSSIST
 ### Datos FTP
 
 ```
-Host:     185.212.70.250
+Host:     [ver credenciales en chat privado]
 Port:     21
-User:     u846064658.mejoraok.com
-Pass:     [ver credenciales en chat]
+User:     [ver credenciales en chat privado]
+Pass:     [ver credenciales en chat privado]
 Path:     /home/u846064658/domains/mejoraok.com/public_html/util/MejoraSM
 ```
 
@@ -44,14 +44,7 @@ Path:     /home/u846064658/domains/mejoraok.com/public_html/util/MejoraSM
 
 ### Método B: FileZilla o cliente FTP
 
-```
-Host:     185.212.70.250
-Port:     21
-User:     u846064658.mejoraok.com
-Pass:     T@beg2301
-Protocol: FTP
-Mode:     Active (si PASV falla)
-```
+Usar credenciales del chat privado. Modo Active si PASV falla.
 
 Subir estos archivos:
 

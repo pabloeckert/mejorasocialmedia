@@ -5,11 +5,21 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+const ALLOWED_ORIGINS = [
+  "https://util.mejoraok.com",
+  "http://localhost:8080",
+  "http://localhost:5173",
+];
+
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get("origin") || "";
+  const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowed,
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type",
+  };
+}
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -53,8 +63,33 @@ async function getAgentConfig(agentId: string) {
 }
 
 async function getContextDocs(query: string): Promise<string> {
-  // Por ahora: devuelve los últimos 5 documentos procesados
-  // TODO: búsqueda vectorial real
+  // Búsqueda vectorial real usando embeddings
+  try {
+    const searchRes = await fetch(AI_GATEWAY, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      },
+      body: JSON.stringify({ action: "embed", texts: [query] }),
+    });
+
+    const searchData = await searchRes.json();
+    if (searchData.embeddings?.[0]) {
+      const { data: chunks } = await supabase.rpc("match_documents", {
+        query_embedding: searchData.embeddings[0],
+        match_count: 5,
+      });
+
+      if (chunks?.length) {
+        return chunks.map((c: any) => `### Fragmento relevante:\n${c.content}`).join("\n\n");
+      }
+    }
+  } catch (e) {
+    console.warn(`Búsqueda vectorial falló: ${e.message}, usando fallback`);
+  }
+
+  // Fallback: últimos 5 documentos procesados
   const { data: docs } = await supabase
     .from("documents")
     .select("title, content")
@@ -325,8 +360,10 @@ async function continueSession(sessionId: string, feedback: string) {
 // ═══════════════════════════════════════
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: CORS_HEADERS });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
@@ -351,12 +388,12 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify(result), {
-      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), {
       status: 500,
-      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
