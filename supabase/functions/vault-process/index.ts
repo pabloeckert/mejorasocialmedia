@@ -147,16 +147,21 @@ async function processDocument(documentId: string) {
   // 3. Chunking
   const chunks = chunkText(content);
 
-  // 4. Generar embeddings
-  const embeddings = await generateEmbeddings(chunks);
+  // 4. Generar embeddings (opcional — si HF falla, guardar sin vectores)
+  let embeddings: number[][] | null = null;
+  try {
+    embeddings = await generateEmbeddings(chunks);
+  } catch (e) {
+    console.warn(`Embeddings fallaron: ${e.message}. Guardando chunks sin vectores.`);
+  }
 
-  // 5. Guardar chunks con embeddings
+  // 5. Guardar chunks (con o sin embeddings)
   const chunkRecords = chunks.map((chunk, i) => ({
     document_id: documentId,
     chunk_index: i,
     content: chunk,
     token_count: Math.ceil(chunk.length / 4),
-    embedding: embeddings[i],
+    ...(embeddings ? { embedding: embeddings[i] } : {}),
   }));
 
   const { error } = await supabase.from("doc_chunks").insert(chunkRecords);
@@ -166,6 +171,7 @@ async function processDocument(documentId: string) {
     documentId,
     chunksCreated: chunks.length,
     totalTokens: chunkRecords.reduce((sum, c) => sum + (c.token_count || 0), 0),
+    withEmbeddings: !!embeddings,
   };
 }
 
@@ -174,18 +180,28 @@ async function processDocument(documentId: string) {
 // ═══════════════════════════════════════
 
 async function searchDocs(query: string, limit = 5): Promise<string[]> {
-  // 1. Embedding de la query
-  const [queryEmbedding] = await generateEmbeddings([query]);
+  // Intentar búsqueda vectorial
+  try {
+    const [queryEmbedding] = await generateEmbeddings([query]);
 
-  // 2. Búsqueda vectorial
-  const { data: chunks } = await supabase.rpc("match_documents", {
-    query_embedding: queryEmbedding,
-    match_count: limit,
-  });
+    const { data: chunks } = await supabase.rpc("match_documents", {
+      query_embedding: queryEmbedding,
+      match_count: limit,
+    });
 
-  if (!chunks?.length) return [];
+    if (chunks?.length) return chunks.map((c: any) => c.content);
+  } catch (e) {
+    console.warn(`Búsqueda vectorial falló: ${e.message}. Usando fallback.`);
+  }
 
-  return chunks.map((c: any) => c.content);
+  // Fallback: últimos chunks por fecha
+  const { data: chunks } = await supabase
+    .from("doc_chunks")
+    .select("content")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  return chunks?.map((c: any) => c.content) || [];
 }
 
 // ═══════════════════════════════════════
