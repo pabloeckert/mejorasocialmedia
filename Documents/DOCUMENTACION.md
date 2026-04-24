@@ -1,7 +1,7 @@
 # 📚 DOCUMENTACIÓN UNIFICADA — MejoraSM (EDA)
 
 **Proyecto:** MejoraSocialMedia — Estrategia Digital Autónoma para MejoraOK
-**Versión:** 3.0
+**Versión:** 3.1
 **Última actualización:** 24 de abril de 2026
 **Repositorio:** https://github.com/pabloeckert/MejoraSM
 **Producción:** https://util.mejoraok.com/MejoraSM/
@@ -158,11 +158,15 @@ mejorasocialmedia/
 | Manifest V3 | ✅ | Migrada (23/04/2026) |
 | Landing page | ✅ | En subdominio |
 
-### ✅ FASE 2: Backend EDA — CÓDIGO LISTO (sin deploy)
+### ✅ FASE 2: Backend EDA — CÓDIGO LISTO (DB configurada)
 
 | Componente | Estado | Descripción |
 |---|---|---|
 | Schema SQL | ✅ | 9 tablas con pgvector + RLS + función de búsqueda |
+| Tablas en Supabase | ✅ | Ejecutadas por bloques (24/04) + GRANT permisos |
+| Storage bucket `vault` | ✅ | Creado con políticas RLS |
+| Función `match_documents` | ✅ | Búsqueda vectorial RAG |
+| Agentes pre-seed | ✅ | 3 agentes (estratega, creativo, crítico) |
 | ai-gateway | ✅ | Router Groq/DeepSeek/Gemini/HF con fallback |
 | orchestrator | ✅ | Mesa de Diálogo multi-agente (3 agentes) |
 | vault-process | ✅ | Procesa docs → chunks → embeddings → RAG |
@@ -171,6 +175,9 @@ mejorasocialmedia/
 | Páginas conectadas | ✅ | Dashboard, Bóveda, Mesa, Configuración a datos reales |
 | Tests Vitest | ✅ | 21 tests pasando |
 | Deploy infra | ✅ | GitHub Actions → FTP automático |
+| Edge Functions | 🔲 | No deployadas (ai-gateway, orchestrator, vault-process) |
+| API keys (Secrets) | 🔲 | Groq, DeepSeek, Gemini pendientes |
+| PostgREST schema cache | ❌ | Tablas existen pero API no las reconoce (ver bloqueadores) |
 
 ### 🔲 ETAPAS 3-6: PENDIENTES
 
@@ -418,11 +425,14 @@ Migrada el 23/04/2026. Cambios: `action` reemplaza `browser_action`, `service_wo
 
 | # | Tarea | Estado | Notas |
 |---|---|---|---|
-| 1.1 | Ejecutar SQL schema en Supabase | ✅ (23/04 22:35) | 9 tablas + RLS + vector search |
-| 1.2 | Verificar bucket `vault` en Storage | ⏳ | Debe existir (creado por schema) |
+| 1.1 | Ejecutar SQL schema en Supabase | ✅ (24/04) | Ejecutado por bloques (5 bloques, sin errores) |
+| 1.2 | Crear bucket `vault` en Storage | ✅ (24/04) | Creado con políticas RLS (upload/read/delete) |
 | 1.3 | Configurar API keys en Secrets | 🔲 | Groq, DeepSeek, Gemini |
 | 1.4 | Deploy Edge Functions (3 funciones) | 🔲 | ai-gateway, orchestrator, vault-process |
-| 1.5 | Health check completo | 🔲 | Verificar tablas + functions + storage |
+| 1.5 | Resolver PostgREST schema cache | ❌ | Tablas existen pero API no las reconoce (ver B4) |
+| 1.6 | Health check completo | 🔲 | Verificar tablas + functions + storage |
+
+**Nota importante:** Las 9 tablas se crearon exitosamente por bloques individuales en el SQL Editor. Sin embargo, PostgREST (la API REST de Supabase) no reconoce las tablas aunque existen en el schema `public`. Se intentó: NOTIFY pgrst, GRANT permisos, Reload schema desde dashboard. Problema persiste. Posible solución: reiniciar el proyecto Supabase o verificar que no sea un problema de plan/free tier.
 
 **Guía de setup:** `Documents/SUPABASE_SETUP.md`
 
@@ -513,7 +523,8 @@ Total:   → ~4-5 semanas desde ETAPA 1
 |---|---|---|---|
 | B1 | API keys no configuradas en Supabase | ⏳ Pablo | ETAPA 1.3 — Settings → Edge Functions → Secrets |
 | B2 | Edge Functions no deployadas | ⏳ Pablo | ETAPA 1.4 — `supabase functions deploy` |
-| B3 | Bucket `vault` sin verificar | ⏳ Pablo | ETAPA 1.2 — Storage → verificar existe |
+| B3 | Bucket `vault` creado, sin verificar lectura | ⏳ | ETAPA 1.2 — Probar upload/list |
+| B4 | **PostgREST no reconoce tablas** | ❌ Crítico | Las tablas existen (verificadas en SQL Editor) pero la API REST no las ve. Intentado: NOTIFY, GRANT, Reload schema. Probar: reiniciar proyecto Supabase, o verificar plan/free tier. Posible solución: usar Supabase CLI directamente. |
 
 ### 🟡 Pendientes Alta Prioridad
 
@@ -680,6 +691,30 @@ VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGci...
 - ✅ Optimización de plan por etapas (re-numeración lógica)
 - ✅ Limpieza de datos sensibles (credenciales removidas de logs)
 - ✅ docs/ marcado como legacy (solo lectura)
+- ✅ Push a GitHub (`3aa02ad`)
+
+### 24/04/2026 — ETAPA 1: Activar Backend (avance parcial)
+
+**Configuración de Supabase (ejecutado por bloques en SQL Editor):**
+- ✅ 9 tablas creadas en schema `public` (documents, doc_chunks, agent_config, dialogue_sessions, dialogue_messages, proposals, calendar_events, metrics, success_rules)
+- ✅ 3 agentes pre-seed insertados (estratega, creativo, crítico)
+- ✅ RLS habilitado en las 9 tablas + políticas "Allow all"
+- ✅ Storage bucket `vault` creado con políticas (upload/read/delete)
+- ✅ Extensión `vector` habilitada + función `match_documents` creada
+- ✅ Permisos GRANT ejecutados para roles `anon` y `authenticated`
+
+**Problema encontrado:**
+- ❌ PostgREST (API REST de Supabase) no reconoce las tablas aunque existen
+- Intentado: `NOTIFY pgrst, 'reload schema'`, `GRANT ALL`, botón "Reload schema" en dashboard
+- Las tablas son visibles desde el SQL Editor (confirmado con screenshots)
+- Error persistente: `PGRST205: Could not find the table in the schema cache`
+- **Siguiente paso:** Reiniciar proyecto Supabase desde dashboard, o contactar soporte
+
+**Pendientes inmediatos:**
+- Resolver B4 (PostgREST schema cache)
+- Configurar API keys como Secrets (Groq, DeepSeek, Gemini)
+- Deploy Edge Functions (ai-gateway, orchestrator, vault-process)
+- Health check completo
 
 ---
 

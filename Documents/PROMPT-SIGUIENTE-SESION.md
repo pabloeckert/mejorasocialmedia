@@ -1,66 +1,80 @@
 # 🚀 Prompt para Siguiente Sesión — MejoraSM
 
-Copiá y pegá esto al inicio de tu próxima conversación:
+**Ubicación:** `Documents/PROMPT-SIGUIENTE-SESION.md`
+**Repo:** https://github.com/pabloeckert/MejoraSM
+**Producción:** https://util.mejoraok.com/MejoraSM/
 
 ---
 
-## Contexto
+## Copiar desde acá ↓
 
-Estoy trabajando en **MejoraSocialMedia (EDA)** — un sistema de gestión estratégica de contenidos en Instagram con IA para MejoraOK.
+---
+
+Estoy trabajando en **MejoraSocialMedia (EDA)** — sistema de gestión estratégica de contenidos en Instagram con IA para MejoraOK.
 
 **Repo:** https://github.com/pabloeckert/MejoraSM
 **Producción:** https://util.mejoraok.com/MejoraSM/
-**Documentación:** `Documents/DOCUMENTACION.md` (documento único consolidado)
+**Documentación:** `Documents/DOCUMENTACION.md` (documento único consolidado, v3.1)
 **Setup Supabase:** `Documents/SUPABASE_SETUP.md`
 
-## Estado actual
+## Estado actual (24/04/2026)
 
-- ✅ Extensión Chrome v1.1.0 funcional (migrada a Manifest V3)
-- ✅ Frontend React con 5 páginas + 4 hooks conectados a datos reales
-- ✅ Backend código listo (3 Edge Functions + schema SQL ejecutado)
+- ✅ Extensión Chrome v1.1.0 funcional (Manifest V3)
+- ✅ Frontend React con 5 páginas + 4 hooks conectados
+- ✅ Backend código listo (3 Edge Functions + schema SQL)
 - ✅ Deploy automático (GitHub Actions → Hostinger)
-- ✅ ETAPA 6 parcial: strictNullChecks, 21 tests Vitest, lovable-tagger removido
-- 🔄 **ETAPA 1 en progreso** — ver abajo
+- ✅ **9 tablas creadas en Supabase** (ejecutadas por bloques en SQL Editor)
+- ✅ Bucket `vault` + políticas RLS + función RAG + 3 agentes seed
+- ❌ **BLOQUEADOR: PostgREST no reconoce las tablas** (ver abajo)
 
-## ETAPA 1: Activar Backend (en progreso)
+## Bloqueador Crítico: PostgREST Schema Cache
+
+Las 9 tablas existen en el schema `public` (verificadas con `pg_tables`), pero la API REST de Supabase no las ve. Error: `PGRST205: Could not find the table in the schema cache`.
+
+**Ya intentado (no funcionó):**
+- `NOTIFY pgrst, 'reload schema';`
+- `SELECT pg_notify('pgrst', 'reload schema');`
+- `GRANT ALL ON ALL TABLES IN SCHEMA public TO anon/authenticated;`
+- Botón "Reload schema" en dashboard de Supabase
+
+**Posibles soluciones a probar:**
+1. **Reiniciar proyecto Supabase** — Project Settings → General → Restart project
+2. **Usar Supabase CLI** — `supabase link + supabase db push` para forzar reconocimiento
+3. **Verificar plan/free tier** — puede haber limitación en el plan gratuito
+4. **Contactar soporte Supabase** — si nada funciona, es un bug del proyecto
+
+## Tareas pendientes (ETAPA 1)
 
 | # | Tarea | Estado |
 |---|---|---|
-| 1.1 | Ejecutar SQL schema en Supabase | ✅ Success (23/04 22:35) |
-| 1.2 | Verificar bucket `vault` en Storage | ⏳ Pendiente |
-| 1.3 | Configurar API keys en Secrets | ⏳ Pendiente |
-| 1.4 | Deploy Edge Functions | ⏳ Pendiente |
-| 1.5 | Health check | ⏳ Pendiente |
-
-### Lo que falta hacer en Supabase (resumen):
-
-1. **Storage** → verificar que existe bucket `vault` (privado)
-2. **Settings → Edge Functions → Secrets** → agregar:
-   - `GROQ_API_KEY` → https://console.groq.com/keys
-   - `DEEPSEEK_API_KEY` → https://platform.deepseek.com/api_keys
-   - `GEMINI_API_KEY` → https://aistudio.google.com/apikey
-3. **Edge Functions** (menú izquierdo) → deploy las 3 funciones
-4. Pasarme **Project URL** + **anon key** (Settings → API) para conectar el frontend
-
-### Para deploy de Edge Functions desde terminal:
-```bash
-npx supabase login
-npx supabase link --project-ref TU_PROJECT_REF
-npx supabase functions deploy ai-gateway
-npx supabase functions deploy orchestrator
-npx supabase functions deploy vault-process
-```
+| 1.1 | Ejecutar SQL schema en Supabase | ✅ (24/04, por bloques) |
+| 1.2 | Crear bucket `vault` + políticas | ✅ (24/04) |
+| 1.3 | **Resolver PostgREST schema cache** | ❌ BLOQUEADOR |
+| 1.4 | Configurar API keys en Secrets | 🔲 (Groq, DeepSeek, Gemini) |
+| 1.5 | Deploy Edge Functions | 🔲 (ai-gateway, orchestrator, vault-process) |
+| 1.6 | Health check completo | 🔲 |
 
 ## Lo que quiero hacer hoy
 
 [ESCRIBÍ ACÁ LO QUE QUERÉS LOGRAR EN ESTA SESIÓN]
 
+## Información técnica
+
+- **Supabase URL:** `https://exnjyxwmxknvzploeaex.supabase.co`
+- **Supabase Project ID:** `exnjyxwmxknvzploeaex`
+- **Tablas creadas:** documents, doc_chunks, agent_config, dialogue_sessions, dialogue_messages, proposals, calendar_events, metrics, success_rules
+- **Agentes seed:** estratega (Groq), creativo (Groq), crítico (DeepSeek)
+- **Storage bucket:** `vault` (privado)
+- **Función SQL:** `match_documents(vector(384), int, real)` — búsqueda RAG
+
 ## Reglas
 
 - Cuando diga **"documentar"**, actualizá `Documents/DOCUMENTACION.md` con los avances
-- Repo: https://github.com/pabloeckert/MejoraSM
 - No toques archivos en `docs/` (legacy, solo lectura)
-- Los hooks están en `src/hooks/`, las páginas en `src/pages/`
 - Build: `npm install --legacy-peer-deps && npm run build`
 - Tests: `npm test` (21 tests, Vitest)
-- Documentación consolidada: `Documents/DOCUMENTACION.md`
+- Documentación consolidada: `Documents/DOCUMENTACION.md` (v3.1)
+
+---
+
+## ↑ Hasta acá copiar
