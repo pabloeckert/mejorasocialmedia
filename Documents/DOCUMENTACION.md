@@ -1,7 +1,7 @@
 # 📚 DOCUMENTACIÓN UNIFICADA — MejoraSM (EDA)
 
 **Proyecto:** MejoraSocialMedia — Estrategia Digital Autónoma para MejoraOK
-**Versión:** 3.1
+**Versión:** 4.0
 **Última actualización:** 24 de abril de 2026
 **Repositorio:** https://github.com/pabloeckert/MejoraSM
 **Producción:** https://util.mejoraok.com/MejoraSM/
@@ -24,6 +24,7 @@
 
 ## 📌 ÍNDICE
 
+0. [Análisis Profundo Multidisciplinario](#0-análisis-profundo-multidisciplinario)
 1. [Visión General](#1-visión-general)
 2. [Stack Tecnológico](#2-stack-tecnológico)
 3. [Estructura del Proyecto](#3-estructura-del-proyecto)
@@ -41,6 +42,49 @@
 15. [Decisiones Técnicas](#15-decisiones-técnicas)
 16. [Costos](#16-costos)
 17. [Buyer Personas](#17-buyer-personas)
+
+---
+
+## 0. ANÁLISIS PROFUNDO MULTIDISCIPLINARIO
+
+**Documento completo:** [`Documents/ANALISIS-PROFUNDO.md`](ANALISIS-PROFUNDO.md)
+
+Análisis realizado el 24/04/2026 desde 28 perspectivas profesionales. Hallazgos críticos:
+
+### 🔴 Issues de Seguridad (INMEDIATO)
+| # | Hallazgo | Acción |
+|---|---|---|
+| S1 | `.env` con credenciales reales commiteado al repo | Rotar + eliminar del historial git |
+| S2 | `docs/DEPLOY.md` contiene FTP password en texto plano | Eliminar credenciales |
+| S3 | RLS con políticas "Allow all" sin autenticación | Restringir post-MVP |
+| S4 | CORS `*` en Edge Functions | Restringir a dominios específicos |
+
+### 🟠 Bloqueadores Técnicos
+| # | Hallazgo | Estado |
+|---|---|---|
+| B4 | PostgREST no reconoce tablas (schema cache) | ❌ Crítico |
+| B5 | Edge Functions sin deploy + sin API keys | 🔲 Pendiente |
+| B6 | `getContextDocs()` no hace búsqueda vectorial real | 🔲 Fix necesario |
+
+### 📊 Puntuación por Área (sobre 5)
+
+| Área | Puntuación | Nota clave |
+|---|---|---|
+| Software Architect | ⭐⭐⭐ | Buena estructura, falta abstracción |
+| Cloud Architect | ⭐⭐⭐⭐ | Serverless correcto, FTP débil |
+| Backend Developer | ⭐⭐⭐ | Funcional, falta validación y tests |
+| Frontend Developer | ⭐⭐⭐⭐ | Moderno, falta error handling global |
+| DevOps | ⭐⭐ | FTP + sin staging + sin health checks |
+| SRE | ⭐⭐ | Sin monitoreo ni alertas |
+| Cybersecurity | ⭐ | CRÍTICO — credenciales expuestas |
+| Data Engineer | ⭐⭐⭐ | Schema sólido, falta ETL |
+| ML Engineer | ⭐⭐⭐ | RAG completo, chunking fijo |
+| QA | ⭐⭐ | Solo tests frontend, sin E2E |
+| DBA | ⭐⭐⭐ | Schema normalizado, faltan índices |
+| Product Manager | ⭐⭐⭐ | Visión clara, sin validación mercado |
+| UX | ⭐⭐⭐ | Consistente, falta onboarding |
+| UI | ⭐⭐⭐⭐ | Profesional, sin design system doc |
+| Legal | ⭐ | Sin política de privacidad, riesgo ToS |
 
 ---
 
@@ -413,104 +457,108 @@ Migrada el 23/04/2026. Cambios: `action` reemplaza `browser_action`, `service_wo
 
 ## 10. PLAN POR ETAPAS
 
-### ETAPA 0: Consolidación y Documentación ✅ (23/04/2026)
-- [x] Consolidar documentación en `Documents/DOCUMENTACION.md`
-- [x] Analizar estado real vs documentado
-- [x] Crear plan por etapas con dependencias y estimaciones
-- [x] Unificar documentación dispersa en documento único (24/04)
+> **Plan optimizado basado en análisis multidisciplinario (24/04/2026).**
+> Ver [`ANALISIS-PROFUNDO.md`](ANALISIS-PROFUNDO.md) para detalle completo de cada área.
 
-### ETAPA 1: Activar Backend 🔄 EN PROGRESO
-**Dependencia:** Acceso a Supabase dashboard
-**Tiempo estimado:** 1-2 horas
+### ETAPA 0: Seguridad y Limpieza — 🔴 INMEDIATO (1 día)
 
 | # | Tarea | Estado | Notas |
 |---|---|---|---|
-| 1.1 | Ejecutar SQL schema en Supabase | ✅ (24/04) | Ejecutado por bloques (5 bloques, sin errores) |
-| 1.2 | Crear bucket `vault` en Storage | ✅ (24/04) | Creado con políticas RLS (upload/read/delete) |
-| 1.3 | Configurar API keys en Secrets | 🔲 | Groq, DeepSeek, Gemini |
-| 1.4 | Deploy Edge Functions (3 funciones) | 🔲 | ai-gateway, orchestrator, vault-process |
-| 1.5 | Resolver PostgREST schema cache | ❌ | Tablas existen pero API no las reconoce (ver B4) |
-| 1.6 | Health check completo | 🔲 | Verificar tablas + functions + storage |
+| 0.1 | Rotar credenciales expuestas (Supabase, FTP) | 🔲 | INMEDIATO |
+| 0.2 | Eliminar `.env` del historial de git | 🔲 | `git filter-branch` o BFG |
+| 0.3 | Eliminar credenciales FTP de `docs/DEPLOY.md` | 🔲 | |
+| 0.4 | Restringir CORS a dominios específicos | 🔲 | Edge Functions |
+| 0.5 | Agregar CSP headers al frontend | 🔲 | |
+| 0.6 | Revisar y restringir RLS policies | 🔲 | Post-MVP auth |
 
-**Nota importante:** Las 9 tablas se crearon exitosamente por bloques individuales en el SQL Editor. Sin embargo, PostgREST (la API REST de Supabase) no reconoce las tablas aunque existen en el schema `public`. Se intentó: NOTIFY pgrst, GRANT permisos, Reload schema desde dashboard. Problema persiste. Posible solución: reiniciar el proyecto Supabase o verificar que no sea un problema de plan/free tier.
-
-**Guía de setup:** `Documents/SUPABASE_SETUP.md`
-
-### ETAPA 2: Conectar y Probar End-to-End
-**Dependencia:** ETAPA 1 completa
-**Tiempo estimado:** 2-3 horas
-
-| # | Tarea | Notas |
-|---|---|---|
-| 2.1 | Probar Bóveda end-to-end | Subir doc → procesar → buscar (RAG) |
-| 2.2 | Probar Mesa de Diálogo end-to-end | Tema → debate multi-agente → propuesta |
-| 2.3 | Probar Dashboard con datos reales | Stats dinámicos desde Supabase |
-| 2.4 | Probar Configuración de agentes | Cambiar proveedor/modelo/temperatura |
-| 2.5 | Manejo de errores y loading states | UX robusta ante fallos de API |
-| 2.6 | Test de integración completo | Flujo completo: doc → debate → propuesta → calendario |
-
-### ETAPA 3: Publicador y Calendario
-**Dependencia:** ETAPA 2 completa
-**Tiempo estimado:** 3-4 horas
-
-| # | Tarea | Notas |
-|---|---|---|
-| 3.1 | CRUD de calendario editorial | Supabase directo |
-| 3.2 | Cron job de publicación | Edge Function scheduled |
-| 3.3 | Instagram Graph API | Requiere credenciales Meta |
-| 3.4 | Sistema de aprobación previa | Cola → approve/reject |
-| 3.5 | Soporte multi-formato | Imagen, carrusel, video |
-
-### ETAPA 4: Monitor de KPIs
-**Dependencia:** ETAPA 3 completa
-**Tiempo estimado:** 2-3 horas
-
-| # | Tarea | Notas |
-|---|---|---|
-| 4.1 | Instagram Insights API | Requiere Business Account |
-| 4.2 | Recolección periódica de métricas | Cron → metrics table |
-| 4.3 | Análisis con DeepSeek | Detección de patrones |
-| 4.4 | Dashboard de KPIs real | Gráficos con datos reales |
-
-### ETAPA 5: Bucle de Aprendizaje
-**Dependencia:** ETAPA 4 completa
-**Tiempo estimado:** 3-4 horas
-
-| # | Tarea | Notas |
-|---|---|---|
-| 5.1 | Tracking de métricas por post | Correlación contenido → rendimiento |
-| 5.2 | Reglas de éxito automáticas | success_rules table |
-| 5.3 | Sugerencias proactivas | "Los posts con emoji en hook rinden 2x" |
-| 5.4 | Gestor de interacciones | Likes, follows automáticos |
-
-### ETAPA 6: Polish, Auth y Escala
-**Dependencia:** ETAPA 5 completa (o paralela)
-**Tiempo estimado:** 2-3 horas
+### ETAPA 1: Activar Backend — 🔄 EN PROGRESO (1-2 días)
 
 | # | Tarea | Estado | Notas |
 |---|---|---|---|
-| 6.1 | Migrar extensión a Manifest V3 | ✅ | Completado 23/04 |
-| 6.2 | Activar `strictNullChecks` | ✅ | Completado 23/04 |
-| 6.3 | Tests Vitest (21 tests) | ✅ | Completado 23/04 |
-| 6.4 | Limpiar archivos legacy extensión | ✅ | Completado 23/04 |
-| 6.5 | Quitar lovable-tagger | ✅ | Completado 23/04 |
-| 6.6 | Actualizar browserslist | ✅ | Completado 23/04 |
-| 6.7 | Auth: Login + proteger rutas | 🔲 | Supabase Auth |
-| 6.8 | Dark/light theme extensión | 🔲 | Baja prioridad |
-| 6.9 | Fuzzy matching buyer persona | 🔲 | Baja prioridad |
-| 6.10 | Analytics de uso extensión | 🔲 | Para bucle de aprendizaje |
+| 1.1 | Ejecutar SQL schema en Supabase | ✅ (24/04) | Ejecutado por bloques |
+| 1.2 | Crear bucket `vault` en Storage | ✅ (24/04) | Creado con políticas RLS |
+| 1.3 | **Resolver PostgREST schema cache** | ❌ | Reiniciar proyecto o usar CLI |
+| 1.4 | Configurar API keys en Secrets | 🔲 | Groq, DeepSeek, HF |
+| 1.5 | Deploy Edge Functions (3 funciones) | 🔲 | ai-gateway, orchestrator, vault-process |
+| 1.6 | Crear índices en DB | 🔲 | status, session_id, created_at |
+| 1.7 | Health check completo | 🔲 | Verificar tablas + functions + storage |
+
+### ETAPA 2: Conectar y Probar End-to-End (2-3 días)
+
+| # | Tarea | Notas |
+|---|---|---|
+| 2.1 | **Corregir `getContextDocs()` para usar búsqueda vectorial** | Fix crítico del orchestrator |
+| 2.2 | Probar Bóveda end-to-end | Upload → process → search (RAG) |
+| 2.3 | Probar Mesa de Diálogo end-to-end | Tema → debate multi-agente → propuesta |
+| 2.4 | Conectar Configuración a tabla `agent_config` | Reemplazar localStorage |
+| 2.5 | Implementar error handling global | Error boundaries + toast |
+| 2.6 | Tests de integración | Flow completo |
+
+### ETAPA 3: UX, Polish y Onboarding (3-4 días)
+
+| # | Tarea | Notas |
+|---|---|---|
+| 3.1 | Onboarding wizard (3 pasos) | Subir docs → configurar agentes → primer diálogo |
+| 3.2 | Confirmación en acciones destructivas | Delete documentos |
+| 3.3 | Loading skeletons consistentes | Reemplazar Loader2 genérico |
+| 3.4 | Error boundary global | React Error Boundary |
+| 3.5 | Mejorar empty states con CTAs | "No hay docs" → botón "Subir" |
+| 3.6 | Laboratorio funcional | Subir media → 3 propuestas IA |
+| 3.7 | Tooltips en configuración | Explicar temperatura, modelos |
+
+### ETAPA 4: Publicador y Calendario (1 semana)
+
+| # | Tarea | Notas |
+|---|---|---|
+| 4.1 | CRUD de calendario editorial | Supabase directo |
+| 4.2 | Sistema de aprobación previa | Cola → approve/reject |
+| 4.3 | Cron job de publicación | Edge Function scheduled |
+| 4.4 | Instagram Graph API | Requiere Meta credentials |
+
+### ETAPA 5: Monitor de KPIs (1 semana)
+
+| # | Tarea | Notas |
+|---|---|---|
+| 5.1 | Instagram Insights API | Requiere Business Account |
+| 5.2 | Recolección periódica de métricas | Cron → metrics table |
+| 5.3 | Dashboard con datos reales | Charts con Recharts |
+| 5.4 | Análisis de rendimiento con IA | DeepSeek pattern detection |
+
+### ETAPA 6: Bucle de Aprendizaje (1-2 semanas)
+
+| # | Tarea | Notas |
+|---|---|---|
+| 6.1 | Tracking de métricas por post | Correlación contenido → rendimiento |
+| 6.2 | Reglas de éxito automáticas | success_rules table |
+| 6.3 | Sugerencias proactivas | "Los posts con emoji rinden 2x" |
+| 6.4 | Gestor de interacciones | Likes, follows automáticos |
+
+### ETAPA 7: Escala y Monetización (post-MVP)
+
+| # | Tarea | Notas |
+|---|---|---|
+| 7.1 | Supabase Auth (login/register) | Proteger rutas |
+| 7.2 | Definir modelo de negocio | Freemium / Suscripción |
+| 7.3 | Analytics (Mixpanel/Amplitude) | Tracking de uso |
+| 7.4 | Landing page optimizada | SEO + conversión |
+| 7.5 | Programa de beta testers | 5-10 emprendedores |
+| 7.6 | Documentar design system | Tokens + componentes |
+| 7.7 | Política de privacidad y ToS | Legal compliance |
 
 ### Timeline Consolidado
 
 ```
-ETAPA 0  → ✅ 23/04 (Consolidación)
-ETAPA 1  → 🔄 En progreso (schema ✅, pendientes secrets + deploy)
-ETAPA 2  → Inmediatamente después de ETAPA 1
-ETAPA 3  → Semana siguiente
-ETAPA 4  → +1 semana
-ETAPA 5  → +1 semana
-ETAPA 6  → Parcialmente ✅ (limpieza hecha, auth/temas pendientes)
-Total:   → ~4-5 semanas desde ETAPA 1
+ETAPA 0  → 1 día (seguridad)        — INMEDIATO
+ETAPA 1  → 1-2 días (backend)       — Semana 1
+ETAPA 2  → 2-3 días (conectar)      — Semana 1-2
+ETAPA 3  → 3-4 días (UX)            — Semana 2
+ETAPA 4  → 1 semana (publicador)    — Semana 3
+ETAPA 5  → 1 semana (KPIs)          — Semana 4
+ETAPA 6  → 1-2 semanas (aprendizaje)— Semana 5-6
+ETAPA 7  → post-MVP (escala)        — Semana 7+
+
+Total MVP funcional: ~3-4 semanas desde ETAPA 0
+Total sistema completo: ~6-8 semanas desde ETAPA 0
 ```
 
 ---
@@ -715,6 +763,16 @@ VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGci...
 - Configurar API keys como Secrets (Groq, DeepSeek, Gemini)
 - Deploy Edge Functions (ai-gateway, orchestrator, vault-process)
 - Health check completo
+
+### 24/04/2026 — Análisis Profundo Multidisciplinario
+
+- ✅ Análisis completo desde 28 perspectivas profesionales
+- ✅ Documento `Documents/ANALISIS-PROFUNDO.md` creado (~30KB)
+- ✅ Hallazgos críticos de seguridad identificados (credenciales expuestas en repo)
+- ✅ Plan optimizado por 8 etapas (ETAPA 0-7) con prioridades y dependencias
+- ✅ DOCUMENTACION.md actualizado a v4.0 con referencia al análisis
+- ✅ Puntuación por área: Cybersecurity ⭐, DevOps ⭐⭐, Frontend ⭐⭐⭐⭐
+- ✅ Issues de seguridad documentados: .env commiteado, FTP password en docs, CORS *, RLS abierta
 
 ---
 
