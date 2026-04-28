@@ -25,10 +25,11 @@ import {
 } from "lucide-react";
 import {
   useDialogueSessions,
+  useDialogueMessages,
   useStartDialogue,
   useContinueDialogue,
 } from "@/hooks/useDialogue";
-import { useApproveProposal, useRejectProposal } from "@/hooks/useProposals";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const agentIcons: Record<string, typeof Brain> = {
   estratega: Brain,
@@ -37,17 +38,29 @@ const agentIcons: Record<string, typeof Brain> = {
 };
 
 const agentColors: Record<string, string> = {
-  estratega: "text-blue-500",
-  creativo: "text-purple-500",
-  critico: "text-amber-500",
+  estratega: "text-blue-500 bg-blue-500/10",
+  creativo: "text-purple-500 bg-purple-500/10",
+  critico: "text-amber-500 bg-amber-500/10",
+};
+
+const agentLabels: Record<string, string> = {
+  estratega: "Estratega",
+  creativo: "Creativo",
+  critico: "Crítico",
 };
 
 export default function MesaDialogo() {
+  return (
+    <ErrorBoundary>
+      <MesaDialogoContent />
+    </ErrorBoundary>
+  );
+}
+
+function MesaDialogoContent() {
   const { data: sessions, isLoading } = useDialogueSessions();
   const startMutation = useStartDialogue();
   const continueMutation = useContinueDialogue();
-  const approveMutation = useApproveProposal();
-  const rejectMutation = useRejectProposal();
 
   const [newTopic, setNewTopic] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -130,11 +143,18 @@ export default function MesaDialogo() {
       )}
 
       {isLoading ? (
-        <Card>
-          <CardContent className="flex items-center justify-center py-16">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="p-4">
+                <div className="space-y-3">
+                  <div className="h-5 w-64 rounded bg-muted animate-pulse" />
+                  <div className="h-3 w-32 rounded bg-muted animate-pulse" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       ) : !sessions || sessions.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
@@ -146,79 +166,175 @@ export default function MesaDialogo() {
               Inicia una nueva sesión para que el Estratega, Creativo y Crítico
               trabajen juntos.
             </p>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={() => setDialogOpen(true)}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Crear primera sesión
+            </Button>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-4">
           {sessions.map((session: any) => (
-            <Card
+            <SessionCard
               key={session.id}
-              className="cursor-pointer transition-colors hover:bg-muted/50"
-              onClick={() =>
+              session={session}
+              isSelected={selectedSession === session.id}
+              onSelect={() =>
                 setSelectedSession(
                   selectedSession === session.id ? null : session.id
                 )
               }
-            >
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">
-                    {session.topic || "Sin tema"}
-                  </CardTitle>
-                  <Badge
-                    variant={
-                      session.status === "completed" ? "default" : "secondary"
-                    }
-                  >
-                    {session.status || "activa"}
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {new Date(session.created_at).toLocaleString("es-AR")}
-                </p>
-              </CardHeader>
-
-              {selectedSession === session.id && (
-                <CardContent className="space-y-4 border-t pt-4">
-                  {/* Feedback input */}
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Dale feedback a los agentes..."
-                      value={feedback}
-                      onChange={(e) => setFeedback(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          handleContinue(session.id);
-                        }
-                      }}
-                    />
-                    <Button
-                      size="icon"
-                      onClick={() => handleContinue(session.id)}
-                      disabled={
-                        !feedback.trim() || continueMutation.isPending
-                      }
-                    >
-                      {continueMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Send className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-
-                  {/* Agent messages placeholder */}
-                  <p className="text-xs text-muted-foreground">
-                    Los mensajes de los agentes aparecerán aquí cuando el
-                    backend esté conectado.
-                  </p>
-                </CardContent>
-              )}
-            </Card>
+              feedback={feedback}
+              onFeedbackChange={setFeedback}
+              onContinue={handleContinue}
+              isContinuing={continueMutation.isPending}
+            />
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+function SessionCard({
+  session,
+  isSelected,
+  onSelect,
+  feedback,
+  onFeedbackChange,
+  onContinue,
+  isContinuing,
+}: {
+  session: any;
+  isSelected: boolean;
+  onSelect: () => void;
+  feedback: string;
+  onFeedbackChange: (v: string) => void;
+  onContinue: (sessionId: string) => void;
+  isContinuing: boolean;
+}) {
+  const { data: messages } = useDialogueMessages(session.id);
+
+  const statusVariant =
+    session.status === "approved"
+      ? "default"
+      : session.status === "needs_review"
+      ? "secondary"
+      : "outline";
+
+  return (
+    <Card className="transition-colors hover:bg-muted/50">
+      <CardHeader
+        className="cursor-pointer pb-3"
+        onClick={onSelect}
+      >
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">
+            {session.topic || "Sin tema"}
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Badge variant={statusVariant}>
+              {session.status === "approved"
+                ? "Aprobado"
+                : session.status === "needs_review"
+                ? "Revisar"
+                : "Activa"}
+            </Badge>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {new Date(session.created_at).toLocaleString("es-AR")}
+        </p>
+      </CardHeader>
+
+      {isSelected && (
+        <CardContent className="space-y-4 border-t pt-4">
+          {/* Agent messages */}
+          {messages && messages.length > 0 ? (
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {messages.map((msg: any) => {
+                const Icon = agentIcons[msg.agent] || Brain;
+                const colorClass = agentColors[msg.agent] || "text-gray-500 bg-gray-500/10";
+                const label = agentLabels[msg.agent] || msg.agent;
+
+                return (
+                  <div key={msg.id} className="flex gap-3">
+                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${colorClass}`}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">
+                        {label} · Turno {msg.turn}
+                      </p>
+                      <div className="rounded-lg border bg-card p-3 text-sm whitespace-pre-wrap">
+                        {msg.content}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-sm text-muted-foreground">
+                Los agentes están trabajando...
+              </span>
+            </div>
+          )}
+
+          {/* Evaluation result */}
+          {session.metadata?.evaluacion && (
+            <Card className={session.metadata.evaluacion.aprobado ? "border-green-500/50" : "border-amber-500/50"}>
+              <CardContent className="flex items-center gap-3 p-3">
+                {session.metadata.evaluacion.aprobado ? (
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                ) : (
+                  <XCircle className="h-5 w-5 text-amber-500" />
+                )}
+                <div>
+                  <p className="text-sm font-medium">
+                    {session.metadata.evaluacion.aprobado ? "Aprobado por el Crítico" : "Necesita revisión"}
+                  </p>
+                  <p className="text-xs text-muted-foreground line-clamp-2">
+                    {session.metadata.evaluacion.feedback}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Feedback input */}
+          <div className="flex gap-2">
+            <Input
+              placeholder="Dale feedback a los agentes..."
+              value={feedback}
+              onChange={(e) => onFeedbackChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  onContinue(session.id);
+                }
+              }}
+            />
+            <Button
+              size="icon"
+              onClick={() => onContinue(session.id)}
+              disabled={!feedback.trim() || isContinuing}
+            >
+              {isContinuing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      )}
+    </Card>
   );
 }

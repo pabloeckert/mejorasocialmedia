@@ -1,8 +1,8 @@
 # 📚 DOCUMENTACIÓN UNIFICADA — MejoraSM (EDA)
 
 **Proyecto:** MejoraSocialMedia — Estrategia Digital Autónoma para MejoraOK
-**Versión:** 4.0
-**Última actualización:** 24 de abril de 2026
+**Versión:** 5.0
+**Última actualización:** 29 de abril de 2026
 **Repositorio:** https://github.com/pabloeckert/MejoraSM
 **Producción:** https://util.mejoraok.com/MejoraSM/
 **Stack:** React + Supabase (Edge Functions + PostgreSQL + pgvector) + Chrome Extension
@@ -48,16 +48,17 @@
 ## 0. ANÁLISIS PROFUNDO MULTIDISCIPLINARIO
 
 **Documento completo:** [`Documents/ANALISIS-PROFUNDO.md`](ANALISIS-PROFUNDO.md)
+**Plan optimizado:** [`Documents/PLAN-OPTIMIZADO.md`](PLAN-OPTIMIZADO.md) — v1.0 (29/04/2026)
 
 Análisis realizado el 24/04/2026 desde 28 perspectivas profesionales. Hallazgos críticos:
 
 ### 🔴 Issues de Seguridad (INMEDIATO)
-| # | Hallazgo | Acción |
-|---|---|---|
-| S1 | `.env` con credenciales reales commiteado al repo | Rotar + eliminar del historial git |
-| S2 | `docs/DEPLOY.md` contiene FTP password en texto plano | Eliminar credenciales |
-| S3 | RLS con políticas "Allow all" sin autenticación | Restringir post-MVP |
-| S4 | CORS `*` en Edge Functions | Restringir a dominios específicos |
+| # | Hallazgo | Acción | Estado |
+|---|---|---|---|
+| S1 | `.env` con credenciales reales commiteado al repo | Rotar + eliminar del historial git | 🔲 Requiere usuario |
+| S2 | `docs/DEPLOY.md` contiene FTP password en texto plano | Eliminar credenciales | ✅ Corregido 29/04 |
+| S3 | RLS con políticas "Allow all" sin autenticación | Restringir post-MVP | 🔲 Post-MVP |
+| S4 | CORS `*` en Edge Functions | Restringir a dominios específicos | ✅ Corregido (ya usa ALLOWED_ORIGINS) |
 
 ### 🟠 Bloqueadores Técnicos
 | # | Hallazgo | Estado |
@@ -773,6 +774,79 @@ VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGci...
 - ✅ DOCUMENTACION.md actualizado a v4.0 con referencia al análisis
 - ✅ Puntuación por área: Cybersecurity ⭐, DevOps ⭐⭐, Frontend ⭐⭐⭐⭐
 - ✅ Issues de seguridad documentados: .env commiteado, FTP password en docs, CORS *, RLS abierta
+
+### 29/04/2026 — Optimización Multidisciplinaria + Consolidación v5.0
+
+**Plan Optimizado:**
+- ✅ `Documents/PLAN-OPTIMIZADO.md` creado (v1.0, ~51KB, 1467 líneas)
+- ✅ Análisis consolidado desde 12+ perspectivas profesionales
+- ✅ Diagrama de dependencias entre etapas
+- ✅ Cada tarea marcada como `[AI]` (ejecutable por IA) o `[USUARIO]` (requiere acción humana)
+- ✅ Flujo "sigue hasta que necesites que haga algo yo" documentado
+
+**Seguridad (ETAPA 0):**
+- ✅ Credenciales FTP eliminadas de `docs/DEPLOY.md`
+- ✅ CSP headers agregados a `index.html` (script-src, connect-src, img-src, frame-src)
+- ✅ Headers de seguridad: X-Content-Type-Options, X-Frame-Options, Referrer-Policy
+- ✅ .env verificado en .gitignore (no tracked)
+
+**Bug Crítico Corregido — Orchestrator:**
+- ✅ `callAI()` reescrito para respetar el `provider` de `agent_config`
+- ✅ Antes: siempre usaba Groq ignorando la configuración por agente
+- ✅ Ahora: routing correcto según proveedor (groq/deepseek/gemini)
+- ✅ Agregado `withRetry()` con exponential backoff (2 reintentos)
+- ✅ Agregado `validateBody()` para validación de inputs
+
+**Mejoras ai-gateway:**
+- ✅ Agregado `withRetry()` con exponential backoff en fallback de proveedores
+- ✅ Agregado `validateBody()` para validación de campos requeridos
+- ✅ Error messages más descriptivos (truncados a 200 chars)
+- ✅ Status codes diferenciados (400 para validación, 500 para errores internos)
+
+**Frontend — Error Boundary:**
+- ✅ Nuevo componente `src/components/ErrorBoundary.tsx`
+- ✅ Envuelve toda la app en `App.tsx`
+- ✅ UI de fallback con botón "Reintentar"
+
+**Frontend — ConfirmDialog:**
+- ✅ Nuevo componente `src/components/ConfirmDialog.tsx`
+- ✅ AlertDialog reutilizable para acciones destructivas
+
+**Frontend — Boveda.tsx mejorado:**
+- ✅ Confirmación antes de eliminar documentos (antes borraba directo)
+- ✅ Loading skeletons consistentes (reemplazan Loader2 genérico)
+- ✅ Empty state con CTA "Subir primer documento"
+- ✅ Muestra word_count y estado real (content vs processed)
+- ✅ Envuelto en ErrorBoundary
+
+**Frontend — MesaDialogo.tsx mejorado:**
+- ✅ Muestra mensajes reales de agentes desde `dialogue_messages`
+- ✅ Indicadores visuales por agente (icono + color + label)
+- ✅ Evaluación del Crítico con icono verde/ámbar
+- ✅ Loading skeletons en lugar de Loader2 genérico
+- ✅ Empty state con CTA "Crear primera sesión"
+- ✅ Envuelto en ErrorBoundary
+
+**Frontend — Configuracion.tsx mejorado:**
+- ✅ Conectado a tabla `agent_config` de Supabase (antes usaba solo localStorage)
+- ✅ Carga configuración desde DB al iniciar
+- ✅ Upsert a Supabase al guardar (con fallback a localStorage)
+- ✅ Tooltips explicativos para temperatura, modelos y proveedores
+- ✅ Loading skeletons mientras carga
+- ✅ Envuelto en ErrorBoundary
+
+**Frontend — App.tsx mejorado:**
+- ✅ ErrorBoundary global envolviendo todas las rutas
+- ✅ QueryClient con retry: 2 y staleTime: 30s
+
+**Documentación:**
+- ✅ `docs/README.md` marcado como legacy (solo lectura)
+- ✅ DOCUMENTACION.md actualizado a v5.0
+- ✅ Referencia al PLAN-OPTIMIZADO.md integrada
+
+**Build & Tests:**
+- ✅ Build exitoso (4.30s, sin errores)
+- ✅ 21 tests pasando
 
 ---
 

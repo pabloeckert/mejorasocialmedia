@@ -26,11 +26,11 @@ cd MejoraINSSIST
 ### Datos FTP
 
 ```
-Host:     [ver credenciales en chat privado]
+Host:     [CONFIGURADO EN GITHUB SECRETS]
 Port:     21
-User:     [ver credenciales en chat privado]
-Pass:     [ver credenciales en chat privado]
-Path:     /home/u846064658/domains/mejoraok.com/public_html/util/MejoraSM
+User:     [CONFIGURADO EN GITHUB SECRETS]
+Pass:     [CONFIGURADO EN GITHUB SECRETS]
+Path:     [CONFIGURADO EN GITHUB SECRETS]
 ```
 
 ### Método A: File Manager de Hostinger (recomendado)
@@ -70,8 +70,8 @@ El FTP data connection puede fallar desde ciertos servidores debido a restriccio
 ```bash
 # Probar con passive mode deshabilitado
 curl --disable-epsv -T archivo.html \
-  "ftp://185.212.70.250/util/MejoraSM/archivo.html" \
-  --user "u846064658.mejoraok.com:T@beg2301"
+  "ftp://HOST/util/MejoraSM/archivo.html" \
+  --user "USER:PASS"
 ```
 
 ---

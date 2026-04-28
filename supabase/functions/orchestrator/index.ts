@@ -30,6 +30,27 @@ const supabase = createClient(
 // HELPERS
 // ═══════════════════════════════════════
 
+function validateBody(body: any, required: string[]) {
+  const missing = required.filter((k) => body[k] === undefined || body[k] === null);
+  if (missing.length > 0) {
+    throw new Error(`Campos requeridos faltantes: ${missing.join(", ")}`);
+  }
+}
+
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 2, baseDelay = 1000): Promise<T> {
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (e: any) {
+      if (i === maxRetries) throw e;
+      const delay = baseDelay * Math.pow(2, i) + Math.random() * 500;
+      console.warn(`[orchestrator] Retry ${i + 1}/${maxRetries} after ${Math.round(delay)}ms: ${e.message}`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw new Error("Unreachable");
+}
+
 async function callAI(
   provider: string,
   model: string,
@@ -37,38 +58,98 @@ async function callAI(
   messages: { role: string; content: string }[],
   temperature = 0.7
 ): Promise<string> {
-  // Llamada directa a proveedores IA (sin pasar por ai-gateway para evitar auth interno)
-  const apiKey = Deno.env.get("GROQ_API_KEY") || Deno.env.get("DEEPSEEK_API_KEY");
-  if (!apiKey) throw new Error("No hay API keys configuradas (GROQ_API_KEY o DEEPSEEK_API_KEY)");
-
   const allMessages = system
     ? [{ role: "system", content: system }, ...messages]
     : messages;
 
-  // Usar Groq por defecto (más rápido y free tier generoso)
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: model || "meta-llama/llama-4-scout-17b-16e-instruct",
-      messages: allMessages,
-      temperature,
-      max_tokens: 2048,
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Groq error ${res.status}: ${err.slice(0, 200)}`);
+  switch (provider) {
+    case "groq": {
+      const apiKey = Deno.env.get("GROQ_API_KEY");
+      if (!apiKey) throw new Error("GROQ_API_KEY no configurada");
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: model || "meta-llama/llama-4-scout-17b-16e-instruct",
+          messages: allMessages,
+          temperature,
+          max_tokens: 2048,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Groq error ${res.status}: ${err.slice(0, 200)}`);
+      }
+      const data = await res.json();
+      const content = data.choices?.[0]?.message?.content;
+      if (!content) throw new Error("Groq: respuesta sin contenido");
+      return content;
+    }
+    case "deepseek": {
+      const apiKey = Deno.env.get("DEEPSEEK_API_KEY");
+      if (!apiKey) throw new Error("DEEPSEEK_API_KEY no configurada");
+      const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: model || "deepseek-chat",
+          messages: allMessages,
+          temperature,
+          max_tokens: 2048,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`DeepSeek error ${res.status}: ${err.slice(0, 200)}`);
+      }
+      const data = await res.json();
+      const content = data.choices?.[0]?.message?.content;
+      if (!content) throw new Error("DeepSeek: respuesta sin contenido");
+      return content;
+    }
+    case "gemini": {
+      const apiKey = Deno.env.get("GEMINI_API_KEY");
+      if (!apiKey) throw new Error("GEMINI_API_KEY no configurada");
+      const contents = allMessages
+        .filter((m) => m.role !== "system")
+        .map((m) => ({
+          role: m.role === "assistant" ? "model" : "user",
+          parts: [{ text: m.content }],
+        }));
+      const systemMsg = allMessages.find((m) => m.role === "system");
+      const body: any = {
+        contents,
+        generationConfig: { temperature, maxOutputTokens: 2048 },
+      };
+      if (systemMsg) {
+        body.systemInstruction = { parts: [{ text: systemMsg.content }] };
+      }
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model || "gemini-1.5-flash"}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }
+      );
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Gemini error ${res.status}: ${err.slice(0, 200)}`);
+      }
+      const data = await res.json();
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!content) throw new Error("Gemini: respuesta sin contenido");
+      return content;
+    }
+    default:
+      throw new Error(`Proveedor no soportado: ${provider}`);
   }
-
-  const data = await res.json();
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error("Groq: respuesta sin contenido");
-  return content;
 }
 
 async function getAgentConfig(agentId: string) {
@@ -111,8 +192,8 @@ async function getContextDocs(query: string): Promise<string> {
         return chunks.map((c: any) => `### Fragmento relevante:\n${c.content}`).join("\n\n");
       }
     }
-  } catch (e) {
-    console.warn(`Búsqueda vectorial falló: ${e.message}, usando fallback`);
+  } catch (e: any) {
+    console.warn(`[orchestrator] Búsqueda vectorial falló: ${e.message}, usando fallback`);
   }
 
   // Fallback: últimos 5 documentos procesados
@@ -167,12 +248,14 @@ Incluí:
 4. Formato recomendado (post, carrusel, historia)
 5. Momento ideal de publicación`;
 
-  return callAI(
-    config.provider,
-    config.model,
-    system,
-    [{ role: "user", content: `Tema: ${topic}` }],
-    config.temperature
+  return withRetry(() =>
+    callAI(
+      config.provider,
+      config.model,
+      system,
+      [{ role: "user", content: `Tema: ${topic}` }],
+      config.temperature
+    )
   );
 }
 
@@ -199,12 +282,14 @@ CTA: [call to action]
 HASHTAGS: [5-10 hashtags relevantes]
 NOTAS VISUALES: [qué imagen/video necesitás]`;
 
-  return callAI(
-    config.provider,
-    config.model,
-    system,
-    [{ role: "user", content: estrategia }],
-    config.temperature
+  return withRetry(() =>
+    callAI(
+      config.provider,
+      config.model,
+      system,
+      [{ role: "user", content: estrategia }],
+      config.temperature
+    )
   );
 }
 
@@ -229,12 +314,14 @@ DECISION: APROBADO | RECHAZADO
 RAZON: [explicación breve]
 SUGERENCIAS: [si fue rechazado, qué cambiar]`;
 
-  const response = await callAI(
-    config.provider,
-    config.model,
-    system,
-    [{ role: "user", content: contenido }],
-    config.temperature
+  const response = await withRetry(() =>
+    callAI(
+      config.provider,
+      config.model,
+      system,
+      [{ role: "user", content: contenido }],
+      config.temperature
+    )
   );
 
   const feedback = response || "Sin feedback del agente crítico";
@@ -397,19 +484,19 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { action, topic, sessionId, feedback } = await req.json();
+    const body = await req.json();
+    const { action, topic, sessionId, feedback } = body;
 
     let result;
 
     switch (action) {
       case "start":
-        if (!topic) throw new Error("Falta 'topic'");
+        validateBody(body, ["topic"]);
         result = await startSession(topic);
         break;
 
       case "continue":
-        if (!sessionId || !feedback)
-          throw new Error("Faltan 'sessionId' y 'feedback'");
+        validateBody(body, ["sessionId", "feedback"]);
         result = await continueSession(sessionId, feedback);
         break;
 
@@ -420,9 +507,10 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e) {
+  } catch (e: any) {
+    const status = e.message?.includes("Campos requeridos") ? 400 : 500;
     return new Response(JSON.stringify({ error: e.message }), {
-      status: 500,
+      status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

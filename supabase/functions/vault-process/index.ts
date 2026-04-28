@@ -1,7 +1,6 @@
 // supabase/functions/vault-process/index.ts
 // Procesa documentos: extrae texto, crea chunks, genera embeddings
-// Uso: POST /vault-process { documentId }
-// Trigger: después de upload a storage bucket 'vault'
+// Uso: POST /vault-process { documentId } | { action: "search", query, limit }
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -28,6 +27,50 @@ const supabase = createClient(
 );
 
 // ═══════════════════════════════════════
+// VALIDACIÓN
+// ═══════════════════════════════════════
+
+function validateBody(body: any, required: string[]) {
+  const missing = required.filter((k) => body[k] === undefined || body[k] === null);
+  if (missing.length > 0) {
+    throw new ValidationError(`Campos requeridos faltantes: ${missing.join(", ")}`);
+  }
+}
+
+function validateUUID(value: string, fieldName: string) {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(value)) {
+    throw new ValidationError(`${fieldName} debe ser un UUID válido, recibido: ${value}`);
+  }
+}
+
+class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ValidationError";
+  }
+}
+
+// ═══════════════════════════════════════
+// RETRY CON EXPONENTIAL BACKOFF
+// ═══════════════════════════════════════
+
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 2, baseDelay = 1000): Promise<T> {
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (e: any) {
+      if (e instanceof ValidationError) throw e;
+      if (i === maxRetries) throw e;
+      const delay = baseDelay * Math.pow(2, i) + Math.random() * 500;
+      console.warn(`[vault-process] Retry ${i + 1}/${maxRetries} after ${Math.round(delay)}ms: ${e.message}`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw new Error("Unreachable");
+}
+
+// ═══════════════════════════════════════
 // CHUNKING
 // ═══════════════════════════════════════
 
@@ -43,7 +86,7 @@ function chunkText(text: string, maxTokens = 500, overlap = 50): string[] {
     if (currentTokens + sentenceTokens > maxTokens && currentChunk.length > 0) {
       chunks.push(currentChunk.join(" "));
 
-      // Overlap: mantener las últimas oriciones
+      // Overlap: mantener las últimas oraciones
       const overlapSentences: string[] = [];
       let overlapTokens = 0;
       for (let i = currentChunk.length - 1; i >= 0; i--) {
@@ -76,26 +119,25 @@ async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   const hfKey = Deno.env.get("HF_API_KEY");
   if (!hfKey) throw new Error("HF_API_KEY no configurada");
 
-  const res = await fetch(
-    "https://api-inference.huggingface.com/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${hfKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ inputs: texts, options: { wait_for_model: true } }),
-    }
-  );
+  const res = await withRetry(async () => {
+    const r = await fetch(
+      "https://api-inference.huggingface.com/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${hfKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ inputs: texts, options: { wait_for_model: true } }),
+      }
+    );
+    if (!r.ok) throw new Error(`HF Embeddings error ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    const data = await r.json();
+    if (!Array.isArray(data)) throw new Error("HF: respuesta no es array");
+    return data;
+  }, 2, 1500);
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`HF Embeddings error ${res.status}: ${err.slice(0, 200)}`);
-  }
-
-  const data = await res.json();
-  if (!Array.isArray(data)) throw new Error("HF: respuesta no es array");
-  return data;
+  return res;
 }
 
 // ═══════════════════════════════════════
@@ -103,59 +145,74 @@ async function generateEmbeddings(texts: string[]): Promise<number[][]> {
 // ═══════════════════════════════════════
 
 async function processDocument(documentId: string) {
+  validateUUID(documentId, "documentId");
+
   // 1. Obtener documento
-  const { data: doc } = await supabase
+  const { data: doc, error: docError } = await supabase
     .from("documents")
     .select("*")
     .eq("id", documentId)
     .single();
 
-  if (!doc) throw new Error("Documento no encontrado");
+  if (docError) throw new Error(`Error obteniendo documento: ${docError.message}`);
+  if (!doc) throw new Error(`Documento no encontrado: ${documentId}`);
 
   // 2. Obtener contenido (si ya está procesado) o descargar del storage
   let content = doc.content;
 
   if (!content) {
     // Descargar del storage
-    const { data: fileData } = await supabase.storage
+    const { data: fileData, error: downloadError } = await supabase.storage
       .from("vault")
       .download(doc.file_path);
 
-    if (!fileData) throw new Error("No se pudo descargar el archivo");
+    if (downloadError) throw new Error(`Error descargando archivo: ${downloadError.message}`);
+    if (!fileData) throw new Error(`No se pudo descargar el archivo: ${doc.file_path}`);
 
     // Extraer texto según tipo
-    if (doc.file_type === "text/plain" || doc.file_path.endsWith(".txt")) {
-      content = await fileData.text();
-    } else if (doc.file_path.endsWith(".md")) {
-      content = await fileData.text();
-    } else {
-      // Para PDF/DOC: usar texto del archivo (limitado)
-      // TODO: integrar pdf-parse o mammoth
-      content = await fileData.text();
+    try {
+      if (doc.file_type === "text/plain" || doc.file_path.endsWith(".txt") || doc.file_path.endsWith(".md")) {
+        content = await fileData.text();
+      } else {
+        // Para PDF/DOC: intentar extraer texto (limitado sin librería especializada)
+        content = await fileData.text();
+      }
+    } catch (e: any) {
+      throw new Error(`Error extrayendo texto del archivo: ${e.message}`);
+    }
+
+    if (!content || content.trim().length === 0) {
+      throw new Error("El archivo está vacío o no se pudo extraer texto");
     }
 
     // Guardar contenido extraído
-    await supabase
+    const { error: updateError } = await supabase
       .from("documents")
       .update({
         content,
         word_count: content.split(/\s+/).length,
       })
       .eq("id", documentId);
+
+    if (updateError) throw new Error(`Error guardando contenido: ${updateError.message}`);
   }
 
   // 3. Chunking
   const chunks = chunkText(content);
+  if (chunks.length === 0) throw new Error("El documento no generó chunks de texto");
 
   // 4. Generar embeddings (opcional — si HF falla, guardar sin vectores)
   let embeddings: number[][] | null = null;
   try {
     embeddings = await generateEmbeddings(chunks);
-  } catch (e) {
-    console.warn(`Embeddings fallaron: ${e.message}. Guardando chunks sin vectores.`);
+  } catch (e: any) {
+    console.warn(`[vault-process] Embeddings fallaron: ${e.message}. Guardando chunks sin vectores.`);
   }
 
-  // 5. Guardar chunks (con o sin embeddings)
+  // 5. Eliminar chunks anteriores (si se reprocesa)
+  await supabase.from("doc_chunks").delete().eq("document_id", documentId);
+
+  // 6. Guardar chunks (con o sin embeddings)
   const chunkRecords = chunks.map((chunk, i) => ({
     document_id: documentId,
     chunk_index: i,
@@ -164,8 +221,8 @@ async function processDocument(documentId: string) {
     ...(embeddings ? { embedding: embeddings[i] } : {}),
   }));
 
-  const { error } = await supabase.from("doc_chunks").insert(chunkRecords);
-  if (error) throw new Error(`Error guardando chunks: ${error.message}`);
+  const { error: insertError } = await supabase.from("doc_chunks").insert(chunkRecords);
+  if (insertError) throw new Error(`Error guardando chunks: ${insertError.message}`);
 
   return {
     documentId,
@@ -180,18 +237,22 @@ async function processDocument(documentId: string) {
 // ═══════════════════════════════════════
 
 async function searchDocs(query: string, limit = 5): Promise<string[]> {
+  if (!query || query.trim().length === 0) throw new ValidationError("Query de búsqueda vacía");
+
   // Intentar búsqueda vectorial
   try {
     const [queryEmbedding] = await generateEmbeddings([query]);
 
-    const { data: chunks } = await supabase.rpc("match_documents", {
+    const { data: chunks, error: rpcError } = await supabase.rpc("match_documents", {
       query_embedding: queryEmbedding,
       match_count: limit,
     });
 
+    if (rpcError) throw new Error(`RPC error: ${rpcError.message}`);
     if (chunks?.length) return chunks.map((c: any) => c.content);
-  } catch (e) {
-    console.warn(`Búsqueda vectorial falló: ${e.message}. Usando fallback.`);
+  } catch (e: any) {
+    if (e instanceof ValidationError) throw e;
+    console.warn(`[vault-process] Búsqueda vectorial falló: ${e.message}. Usando fallback.`);
   }
 
   // Fallback: últimos chunks por fecha
@@ -222,26 +283,27 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case "process":
-        if (!documentId) throw new Error("Falta 'documentId'");
+        validateBody({ documentId }, ["documentId"]);
         result = await processDocument(documentId);
         break;
 
       case "search":
-        if (!query) throw new Error("Falta 'query'");
+        validateBody({ query }, ["query"]);
         const results = await searchDocs(query, limit || 5);
         result = { results };
         break;
 
       default:
-        throw new Error("Acción no válida. Usa 'process' o 'search'");
+        throw new ValidationError("Acción no válida. Usa 'process' o 'search'");
     }
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), {
-      status: 500,
+  } catch (e: any) {
+    const status = e instanceof ValidationError ? 400 : 500;
+    return new Response(JSON.stringify({ error: e.message, type: e.name }), {
+      status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

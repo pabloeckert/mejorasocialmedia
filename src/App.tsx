@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Dashboard from "./pages/Dashboard";
 import Boveda from "./pages/Boveda";
 import MesaDialogo from "./pages/MesaDialogo";
@@ -11,7 +12,18 @@ import Laboratorio from "./pages/Laboratorio";
 import Configuracion from "./pages/Configuracion";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+    mutations: {
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -19,16 +31,18 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route element={<AppLayout />}>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/boveda" element={<Boveda />} />
-            <Route path="/mesa" element={<MesaDialogo />} />
-            <Route path="/laboratorio" element={<Laboratorio />} />
-            <Route path="/configuracion" element={<Configuracion />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route element={<AppLayout />}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/boveda" element={<Boveda />} />
+              <Route path="/mesa" element={<MesaDialogo />} />
+              <Route path="/laboratorio" element={<Laboratorio />} />
+              <Route path="/configuracion" element={<Configuracion />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </ErrorBoundary>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

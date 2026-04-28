@@ -20,6 +20,59 @@ function getCorsHeaders(req: Request) {
   };
 }
 
+// ═══════════════════════════════════════
+// VALIDACIÓN
+// ═══════════════════════════════════════
+
+function validateBody(body: any, required: string[]) {
+  const missing = required.filter((k) => body[k] === undefined || body[k] === null);
+  if (missing.length > 0) {
+    throw new ValidationError(`Campos requeridos faltantes: ${missing.join(", ")}`);
+  }
+}
+
+class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ValidationError";
+  }
+}
+
+class ProviderError extends Error {
+  provider: string;
+  status: number;
+  constructor(provider: string, status: number, message: string) {
+    super(message);
+    this.name = "ProviderError";
+    this.provider = provider;
+    this.status = status;
+  }
+}
+
+// ═══════════════════════════════════════
+// RETRY CON EXPONENTIAL BACKOFF
+// ═══════════════════════════════════════
+
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 2, baseDelay = 1000): Promise<T> {
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (e: any) {
+      // No reintentar errores de validación
+      if (e instanceof ValidationError) throw e;
+      if (i === maxRetries) throw e;
+      const delay = baseDelay * Math.pow(2, i) + Math.random() * 500;
+      console.warn(`[ai-gateway] Retry ${i + 1}/${maxRetries} after ${Math.round(delay)}ms: ${e.message}`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw new Error("Unreachable");
+}
+
+// ═══════════════════════════════════════
+// INTERFACES
+// ═══════════════════════════════════════
+
 interface AIRequest {
   provider: "groq" | "deepseek" | "gemini" | "hf";
   model?: string;
@@ -42,7 +95,7 @@ interface AIResponse {
 
 async function callGroq(req: AIRequest): Promise<AIResponse> {
   const apiKey = Deno.env.get("GROQ_API_KEY");
-  if (!apiKey) throw new Error("GROQ_API_KEY no configurada");
+  if (!apiKey) throw new ProviderError("groq", 503, "GROQ_API_KEY no configurada");
 
   const model = req.model || "meta-llama/llama-4-scout-17b-16e-instruct";
   const messages = req.system
@@ -68,7 +121,7 @@ async function callGroq(req: AIRequest): Promise<AIResponse> {
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Groq error ${res.status}: ${err}`);
+    throw new ProviderError("groq", res.status, `Groq error ${res.status}: ${err.slice(0, 200)}`);
   }
 
   const data = await res.json();
@@ -82,7 +135,7 @@ async function callGroq(req: AIRequest): Promise<AIResponse> {
 
 async function callDeepSeek(req: AIRequest): Promise<AIResponse> {
   const apiKey = Deno.env.get("DEEPSEEK_API_KEY");
-  if (!apiKey) throw new Error("DEEPSEEK_API_KEY no configurada");
+  if (!apiKey) throw new ProviderError("deepseek", 503, "DEEPSEEK_API_KEY no configurada");
 
   const model = req.model || "deepseek-chat";
   const messages = req.system
@@ -108,7 +161,7 @@ async function callDeepSeek(req: AIRequest): Promise<AIResponse> {
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`DeepSeek error ${res.status}: ${err}`);
+    throw new ProviderError("deepseek", res.status, `DeepSeek error ${res.status}: ${err.slice(0, 200)}`);
   }
 
   const data = await res.json();
@@ -122,7 +175,7 @@ async function callDeepSeek(req: AIRequest): Promise<AIResponse> {
 
 async function callGemini(req: AIRequest): Promise<AIResponse> {
   const apiKey = Deno.env.get("GEMINI_API_KEY");
-  if (!apiKey) throw new Error("GEMINI_API_KEY no configurada");
+  if (!apiKey) throw new ProviderError("gemini", 503, "GEMINI_API_KEY no configurada");
 
   const model = req.model || "gemini-1.5-flash";
   const contents = req.messages.map((m) => ({
@@ -152,7 +205,7 @@ async function callGemini(req: AIRequest): Promise<AIResponse> {
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Gemini error ${res.status}: ${err}`);
+    throw new ProviderError("gemini", res.status, `Gemini error ${res.status}: ${err.slice(0, 200)}`);
   }
 
   const data = await res.json();
@@ -169,6 +222,7 @@ async function callGemini(req: AIRequest): Promise<AIResponse> {
 
 async function callEmbeddings(texts: string[]): Promise<number[][]> {
   const apiKey = Deno.env.get("HF_API_KEY");
+  if (!apiKey) throw new ProviderError("hf", 503, "HF_API_KEY no configurada");
   const model = "sentence-transformers/all-MiniLM-L6-v2";
 
   const res = await fetch(
@@ -183,12 +237,12 @@ async function callEmbeddings(texts: string[]): Promise<number[][]> {
     }
   );
 
-  if (!res.ok) throw new Error(`HF Embeddings error: ${await res.text()}`);
+  if (!res.ok) throw new ProviderError("hf", res.status, `HF Embeddings error ${res.status}: ${(await res.text()).slice(0, 200)}`);
   return await res.json();
 }
 
 // ═══════════════════════════════════════
-// ROUTER
+// ROUTER CON FALLBACK
 // ═══════════════════════════════════════
 
 async function routeRequest(req: AIRequest): Promise<AIResponse> {
@@ -200,25 +254,25 @@ async function routeRequest(req: AIRequest): Promise<AIResponse> {
     case "gemini":
       return callGemini(req);
     default:
-      throw new Error(`Proveedor no soportado: ${req.provider}`);
+      throw new ValidationError(`Proveedor no soportado: ${req.provider}`);
   }
 }
 
-// Fallback: si el proveedor principal falla, intenta el siguiente
 async function withFallback(req: AIRequest): Promise<AIResponse> {
   const providers: AIRequest["provider"][] = ["groq", "gemini", "deepseek"];
   const startIdx = providers.indexOf(req.provider);
+  const errors: string[] = [];
 
   for (let i = 0; i < providers.length; i++) {
     const idx = (startIdx + i) % providers.length;
     try {
-      return await routeRequest({ ...req, provider: providers[idx] });
-    } catch (e) {
-      console.warn(`[${providers[idx]}] falló: ${e.message}`);
-      if (i === providers.length - 1) throw e;
+      return await withRetry(() => routeRequest({ ...req, provider: providers[idx] }), 1, 800);
+    } catch (e: any) {
+      errors.push(`${providers[idx]}: ${e.message}`);
+      console.warn(`[ai-gateway] ${providers[idx]} falló: ${e.message}`);
     }
   }
-  throw new Error("Todos los proveedores fallaron");
+  throw new Error(`Todos los proveedores fallaron:\n${errors.join("\n")}`);
 }
 
 // ═══════════════════════════════════════
@@ -238,6 +292,7 @@ Deno.serve(async (req) => {
 
     // Endpoint de embeddings
     if (body.action === "embed") {
+      validateBody(body, ["texts"]);
       const embeddings = await callEmbeddings(body.texts);
       return new Response(JSON.stringify({ embeddings }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -245,19 +300,21 @@ Deno.serve(async (req) => {
     }
 
     // Chat completion
+    validateBody(body, ["provider", "messages"]);
     const aiReq = body as AIRequest;
-    if (!aiReq.provider || !aiReq.messages) {
-      throw new Error("Faltan campos: provider, messages");
-    }
-
     const result = await withFallback(aiReq);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), {
-      status: 500,
+  } catch (e: any) {
+    // Diferenciar tipos de error para HTTP status code apropiado
+    let status = 500;
+    if (e instanceof ValidationError) status = 400;
+    else if (e instanceof ProviderError) status = e.status >= 500 ? 502 : e.status;
+
+    return new Response(JSON.stringify({ error: e.message, type: e.name }), {
+      status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

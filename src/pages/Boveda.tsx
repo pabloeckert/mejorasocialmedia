@@ -5,13 +5,24 @@ import { Badge } from "@/components/ui/badge";
 import { Upload, FileText, Trash2, Loader2, Search } from "lucide-react";
 import { useDocuments, useUploadDocument, useDeleteDocument } from "@/hooks/useVault";
 import { Input } from "@/components/ui/input";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export default function Boveda() {
+  return (
+    <ErrorBoundary>
+      <BovedaContent />
+    </ErrorBoundary>
+  );
+}
+
+function BovedaContent() {
   const { data: documents, isLoading } = useDocuments();
   const uploadMutation = useUploadDocument();
   const deleteMutation = useDeleteDocument();
   const fileRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -20,6 +31,14 @@ export default function Boveda() {
         onSuccess: () => {
           if (fileRef.current) fileRef.current.value = "";
         },
+      });
+    }
+  };
+
+  const handleDelete = () => {
+    if (deleteTarget) {
+      deleteMutation.mutate(deleteTarget, {
+        onSettled: () => setDeleteTarget(null),
       });
     }
   };
@@ -74,11 +93,22 @@ export default function Boveda() {
       )}
 
       {isLoading ? (
-        <Card>
-          <CardContent className="flex items-center justify-center py-16">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </CardContent>
-        </Card>
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-5 w-5 rounded bg-muted animate-pulse" />
+                  <div className="space-y-2">
+                    <div className="h-4 w-48 rounded bg-muted animate-pulse" />
+                    <div className="h-3 w-32 rounded bg-muted animate-pulse" />
+                  </div>
+                </div>
+                <div className="h-6 w-20 rounded bg-muted animate-pulse" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       ) : !filteredDocs || filteredDocs.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
@@ -91,6 +121,16 @@ export default function Boveda() {
                 ? "Intenta con otro término de búsqueda."
                 : "Sube tu primer documento para alimentar el criterio de los agentes."}
             </p>
+            {!search && (
+              <Button
+                variant="outline"
+                className="mt-4"
+                onClick={() => fileRef.current?.click()}
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                Subir primer documento
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -105,17 +145,18 @@ export default function Boveda() {
                     <p className="text-xs text-muted-foreground">
                       {doc.file_type || "documento"} ·{" "}
                       {new Date(doc.created_at).toLocaleDateString("es-AR")}
+                      {doc.word_count ? ` · ${doc.word_count} palabras` : ""}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={doc.processed ? "default" : "secondary"}>
-                    {doc.processed ? "Procesado" : "Pendiente"}
+                  <Badge variant={doc.content ? "default" : "secondary"}>
+                    {doc.content ? "Procesado" : "Pendiente"}
                   </Badge>
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => deleteMutation.mutate(doc.id)}
+                    onClick={() => setDeleteTarget(doc.id)}
                     disabled={deleteMutation.isPending}
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
@@ -134,6 +175,16 @@ export default function Boveda() {
           </CardContent>
         </Card>
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Eliminar documento"
+        description="¿Estás seguro de que querés eliminar este documento? Esta acción no se puede deshacer y se perderán todos los chunks y embeddings asociados."
+        confirmText="Eliminar"
+        variant="destructive"
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }
