@@ -1,8 +1,8 @@
 # 📚 DOCUMENTACIÓN UNIFICADA — MejoraSM (EDA)
 
 **Proyecto:** MejoraSocialMedia — Estrategia Digital Autónoma para MejoraOK
-**Versión:** 5.0
-**Última actualización:** 29 de abril de 2026
+**Versión:** 6.0
+**Última actualización:** 29 de abril de 2026 (07:00 GMT+8)
 **Repositorio:** https://github.com/pabloeckert/MejoraSM
 **Producción:** https://util.mejoraok.com/MejoraSM/
 **Stack:** React + Supabase (Edge Functions + PostgreSQL + pgvector) + Chrome Extension
@@ -19,6 +19,22 @@
 > 6. Hacer commit y push al repo.
 >
 > **Este es el documento fuente único. No editar archivos en `docs/` (legacy, solo lectura).**
+
+---
+
+> ## 🚨 BLOQUEADORES ACTIVOS (29/04/2026)
+>
+> **La aplicación NO funciona hasta resolver estos 3 bloqueadores:**
+>
+> | # | Bloqueador | Acción requerida | Tiempo |
+> |---|---|---|---|
+> | 1 | PostgREST no reconoce tablas | Pause/Resume en Supabase Dashboard | 5 min |
+> | 2 | API keys no configuradas | Crear keys en Groq, DeepSeek, HuggingFace | 10 min |
+> | 3 | Edge Functions no deployadas | Ejecutar `bash scripts/deploy.sh` | 5 min |
+>
+> **Guía completa: [`Documents/DEPLOY-CHECKLIST.md`](DEPLOY-CHECKLIST.md)**
+>
+> **Sin estos pasos, la app abre pero todo da error o muestra datos vacíos.**
 
 ---
 
@@ -224,7 +240,7 @@ mejorasocialmedia/
 | API keys (Secrets) | 🔲 | Groq, DeepSeek, Gemini pendientes |
 | PostgREST schema cache | ❌ | Tablas existen pero API no las reconoce (ver bloqueadores) |
 
-### Estado de Etapas (29/04/2026)
+### Estado de Etapas (29/04/2026 — v6.0)
 
 | Etapa | Descripción | Estado | Quién |
 |---|---|---|---|
@@ -236,9 +252,53 @@ mejorasocialmedia/
 | ETAPA 3 | UX, Polish y Onboarding | ✅ COMPLETA | AI |
 | ETAPA 4 | Calendario y Aprobación | ✅ COMPLETA | AI |
 | ETAPA 4 | Publicador automático | ⏳ BLOQUEADO | USUARIO (Instagram API) |
-| ETAPA 5 | Monitor de KPIs | ⏳ BLOQUEADO | USUARIO (Instagram Business) |
-| ETAPA 6 | Bucle de Aprendizaje | 🔲 Pendiente | — |
+| ETAPA 5 | Monitor de KPIs (código) | ✅ CÓDIGO LISTO | AI |
+| ETAPA 5 | Monitor de KPIs (datos) | ⏳ BLOQUEADO | USUARIO (Instagram Business) |
+| ETAPA 6 | Bucle de Aprendizaje (código) | ✅ CÓDIGO LISTO | AI |
 | ETAPA 7 | Escala y Monetización | 🔲 Post-MVP | — |
+
+### Estado Resumen — 29/04/2026 v6.0
+
+**✅ COMPLETADO POR LA IA (todo el código posible):**
+
+Frontend (7 páginas):
+- Dashboard con gráficos Recharts (engagement bar chart, format pie chart)
+- Bóveda de Conocimiento (upload, search, delete con confirmación)
+- Mesa de Diálogo (sesiones con mensajes de agentes en vivo)
+- Laboratorio de Contenido (genera propuestas vía orchestrator)
+- Calendario Editorial (crear eventos, ver por fecha, aprobar/rechazar)
+- Configuración (conectado a Supabase, tooltips)
+- Onboarding Wizard (3 pasos, auto-detección)
+
+Backend (5 Edge Functions):
+- ai-gateway — Router universal Groq/DeepSeek/Gemini/HF con retry
+- orchestrator — Mesa de Diálogo multi-agente con routing correcto por proveedor
+- vault-process — Procesamiento RAG (chunking + embeddings + búsqueda vectorial)
+- metrics-collector — Recolector de métricas de Instagram Insights API
+- rule-engine — Motor de reglas de éxito automáticas
+
+Base de datos (3 migraciones):
+- 001_initial_schema.sql — 9 tablas + pgvector + RLS + función match_documents
+- 001_fix_policies.sql — Fix políticas RLS
+- 003_indexes_and_constraints.sql — 14 índices + 5 CHECK constraints
+
+Documentación:
+- DOCUMENTACION.md — Documento unificado (este archivo)
+- PLAN-OPTIMIZADO.md — Plan por etapas con análisis multidisciplinario
+- DEPLOY-CHECKLIST.md — Guía paso a paso para deploy
+- PRIVACIDAD.md — Draft política de privacidad
+- ANALISIS-PROFUNDO.md — Análisis 28 perspectivas profesionales
+
+Tests: 49 tests pasando (5 test files)
+Build: 6.48s sin errores
+
+**⏳ BLOQUEADO — Requiere acción del usuario:**
+
+1. PostgREST schema cache — Las 9 tablas existen pero la API REST no las ve
+2. API keys — Groq, DeepSeek, HuggingFace no configuradas
+3. Deploy Edge Functions — No subidas a Supabase
+
+**Sin estos 3 pasos, la aplicación abre pero todo da error o muestra datos vacíos.**
 
 ---
 
@@ -887,6 +947,40 @@ VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGci...
 **Build & Tests:**
 - ✅ Build exitoso (4.31s, sin errores)
 - ✅ 43 tests pasando (5 test files)
+
+### 29/04/2026 — ETAPA 5-6 Código Completo + Documentación Final v6.0
+
+**Backend — 2 nuevas Edge Functions:**
+- ✅ `metrics-collector` — Recolecta métricas de Instagram Insights API
+  - Acciones: collect, collect-all, insights
+  - Genera análisis automático: top posts, engagement promedio, formato óptimo
+- ✅ `rule-engine` — Motor de reglas de éxito automáticas
+  - Acciones: analyze, suggest
+  - Analiza patrones: formato, hooks, timing, hashtags
+  - Guarda reglas en `success_rules` con confidence score
+
+**Frontend — Dashboard con gráficos:**
+- ✅ Engagement bar chart (Recharts) — muestra engagement % por post
+- ✅ Format pie chart — distribución por formato (post/carrusel/historia)
+- ✅ Gráficos muestran datos reales cuando el backend esté activo
+
+**Tests:**
+- ✅ Mock de `useLatestMetrics` añadido al test del Dashboard
+- ✅ Test de Calendario corregido (weekday headers)
+- ✅ Total: 49 tests pasando (5 test files)
+
+**Deploy script actualizado:**
+- ✅ Ahora deploya 5 funciones (ai-gateway, orchestrator, vault-process, metrics-collector, rule-engine)
+- ✅ Verificación de endpoints post-deploy
+- ✅ Lista de secrets necesarios
+
+**Documentación:**
+- ✅ DEPLOY-CHECKLIST.md creado — guía paso a paso para el usuario
+- ✅ PRIVACIDAD.md creado — draft de política de privacidad
+- ✅ DOCUMENTACION.md actualizado a v6.0 con bloqueadores visibles
+- ✅ Estado de etapas actualizado con detalle de código listo vs bloqueado
+
+**Build: 6.48s | Tests: 49/49 passing**
 
 ---
 
