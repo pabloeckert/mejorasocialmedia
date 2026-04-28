@@ -2,14 +2,6 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,18 +13,40 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   CalendarDays,
   Plus,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
   Clock,
-  CheckCircle,
-  XCircle,
+  FileText,
+  Trash2,
 } from "lucide-react";
 import { useCalendarEvents, useCreateCalendarEvent } from "@/hooks/useMetrics";
-import { usePendingProposals, useApproveProposal, useRejectProposal } from "@/hooks/useProposals";
+import { useProposals } from "@/hooks/useProposals";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { supabase } from "@/services/supabase";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/components/ui/use-toast";
+
+const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+
+function getDaysInMonth(year: number, month: number) {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+function getFirstDayOfMonth(year: number, month: number) {
+  const day = new Date(year, month, 1).getDay();
+  return day === 0 ? 6 : day - 1; // Monday = 0
+}
 
 export default function Calendario() {
   return (
@@ -44,72 +58,101 @@ export default function Calendario() {
 
 function CalendarioContent() {
   const { data: events, isLoading } = useCalendarEvents();
-  const { data: pendingProposals } = usePendingProposals();
+  const { data: proposals } = useProposals();
   const createEvent = useCreateCalendarEvent();
-  const approveProposal = useApproveProposal();
-  const rejectProposal = useRejectProposal();
+  const queryClient = useQueryClient();
 
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [newEvent, setNewEvent] = useState({
-    title: "",
-    description: "",
-    format: "post",
-  });
-  const [rejectTarget, setRejectTarget] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
-  const handleCreateEvent = () => {
-    if (!newEvent.title.trim() || !selectedDate) return;
+  // Form state
+  const [formTitle, setFormTitle] = useState("");
+  const [formDesc, setFormDesc] = useState("");
+  const [formDate, setFormDate] = useState("");
+  const [formTime, setFormTime] = useState("10:00");
+  const [formFormat, setFormFormat] = useState("post");
+  const [formProposalId, setFormProposalId] = useState("");
+
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const daysInMonth = getDaysInMonth(year, month);
+  const firstDay = getFirstDayOfMonth(year, month);
+
+  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
+  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+
+  const monthName = currentDate.toLocaleDateString("es-AR", {
+    month: "long",
+    year: "numeric",
+  });
+
+  // Events by day
+  const eventsByDay: Record<number, any[]> = {};
+  (events || []).forEach((e: any) => {
+    const d = new Date(e.date);
+    if (d.getMonth() === month && d.getFullYear() === year) {
+      const day = d.getDate();
+      if (!eventsByDay[day]) eventsByDay[day] = [];
+      eventsByDay[day].push(e);
+    }
+  });
+
+  const handleCreate = () => {
+    if (!formTitle.trim() || !formDate) return;
+
+    const dateTime = `${formDate}T${formTime}:00`;
 
     createEvent.mutate(
       {
-        title: newEvent.title,
-        description: newEvent.description,
-        date: selectedDate.toISOString(),
-        format: newEvent.format,
+        title: formTitle,
+        description: formDesc || undefined,
+        date: dateTime,
+        format: formFormat,
+        proposal_id: formProposalId || undefined,
       },
       {
         onSuccess: () => {
-          setNewEvent({ title: "", description: "", format: "post" });
           setDialogOpen(false);
-          toast({ title: "Evento creado", description: "Se agregó al calendario editorial." });
+          setFormTitle("");
+          setFormDesc("");
+          setFormDate("");
+          setFormTime("10:00");
+          setFormFormat("post");
+          setFormProposalId("");
+          toast({ title: "Evento creado", description: "Se agregó al calendario." });
+        },
+        onError: (err: any) => {
+          toast({ title: "Error", description: err.message, variant: "destructive" });
         },
       }
     );
   };
 
-  const handleApprove = (proposalId: string) => {
-    approveProposal.mutate(proposalId, {
-      onSuccess: () => {
-        toast({ title: "Propuesta aprobada", description: "Pasó a pendiente de publicación." });
-      },
-    });
-  };
-
-  const handleReject = () => {
-    if (rejectTarget) {
-      rejectProposal.mutate(
-        { id: rejectTarget, reason: "Rechazada desde calendario" },
-        {
-          onSettled: () => setRejectTarget(null),
-        }
-      );
-    }
-  };
-
-  // Get events for selected date
-  const eventsForDate = events?.filter((e: any) => {
-    if (!selectedDate) return false;
-    const eventDate = new Date(e.date);
-    return (
-      eventDate.getFullYear() === selectedDate.getFullYear() &&
-      eventDate.getMonth() === selectedDate.getMonth() &&
-      eventDate.getDate() === selectedDate.getDate()
-    );
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("calendar_events").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      setDeleteTarget(null);
+      toast({ title: "Evento eliminado" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
   });
 
-  // Get dates with events for highlighting
-  const eventDates = events?.map((e: any) => new Date(e.date)) || [];
+  // Upcoming events (next 7 days)
+  const now = new Date();
+  const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const upcoming = (events || [])
+    .filter((e: any) => {
+      const d = new Date(e.date);
+      return d >= now && d <= nextWeek;
+    })
+    .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   return (
     <div className="space-y-8">
@@ -117,7 +160,7 @@ function CalendarioContent() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Calendario Editorial</h1>
           <p className="mt-1 text-muted-foreground">
-            Programá y aprobá contenido para publicar.
+            Programá y organizá tus publicaciones.
           </p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -129,53 +172,82 @@ function CalendarioContent() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Nuevo evento en el calendario</DialogTitle>
+              <DialogTitle>Crear evento en el calendario</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Título</Label>
                 <Input
                   placeholder="Ej: Post sobre liderazgo"
-                  value={newEvent.title}
-                  onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
+                  value={formTitle}
+                  onChange={(e) => setFormTitle(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Descripción (opcional)</Label>
                 <Textarea
-                  placeholder="Detalles del contenido..."
-                  value={newEvent.description}
-                  onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
+                  placeholder="Notas o detalles del post..."
+                  value={formDesc}
+                  onChange={(e) => setFormDesc(e.target.value)}
                   rows={2}
                 />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Fecha</Label>
+                  <Input
+                    type="date"
+                    value={formDate}
+                    onChange={(e) => setFormDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Hora</Label>
+                  <Input
+                    type="time"
+                    value={formTime}
+                    onChange={(e) => setFormTime(e.target.value)}
+                  />
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label>Formato</Label>
-                <Select
-                  value={newEvent.format}
-                  onValueChange={(v) => setNewEvent({ ...newEvent, format: v })}
-                >
+                <Select value={formFormat} onValueChange={setFormFormat}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="post">Post</SelectItem>
                     <SelectItem value="carrusel">Carrusel</SelectItem>
-                    <SelectItem value="historia">Historia</SelectItem>
                     <SelectItem value="reel">Reel</SelectItem>
+                    <SelectItem value="historia">Historia</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="rounded-lg border p-3 text-sm text-muted-foreground">
-                📅 Fecha seleccionada: {selectedDate?.toLocaleDateString("es-AR") || "Ninguna"}
-              </div>
+              {proposals && proposals.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Vincular propuesta (opcional)</Label>
+                  <Select value={formProposalId} onValueChange={setFormProposalId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar propuesta..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {proposals.map((p: any) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.title || "Sin título"} ({p.format || "post"})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancelar
                 </Button>
                 <Button
-                  onClick={handleCreateEvent}
-                  disabled={!newEvent.title.trim() || createEvent.isPending}
+                  onClick={handleCreate}
+                  disabled={!formTitle.trim() || !formDate || createEvent.isPending}
                 >
                   {createEvent.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Crear evento
@@ -187,100 +259,122 @@ function CalendarioContent() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Calendar */}
-        <Card className="lg:col-span-1">
-          <CardContent className="p-4">
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={setSelectedDate}
-              className="rounded-md border"
-              modifiers={{
-                hasEvent: eventDates,
-              }}
-              modifiersStyles={{
-                hasEvent: {
-                  fontWeight: "bold",
-                  textDecoration: "underline",
-                  textUnderlineOffset: "4px",
-                },
-              }}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Events for selected date */}
+        {/* Calendar grid */}
         <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <CalendarDays className="h-4 w-4" />
-              {selectedDate
-                ? selectedDate.toLocaleDateString("es-AR", {
-                    weekday: "long",
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })
-                : "Seleccioná una fecha"}
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <Button variant="ghost" size="icon" onClick={prevMonth}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <CardTitle className="text-base capitalize">{monthName}</CardTitle>
+            <Button variant="ghost" size="icon" onClick={nextMonth}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="flex items-center justify-center py-8">
+              <div className="flex h-64 items-center justify-center">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : !eventsForDate || eventsForDate.length === 0 ? (
+            ) : (
+              <div className="grid grid-cols-7 gap-1">
+                {/* Weekday headers */}
+                {WEEKDAYS.map((d) => (
+                  <div key={d} className="p-2 text-center text-xs font-medium text-muted-foreground">
+                    {d}
+                  </div>
+                ))}
+
+                {/* Empty cells before first day */}
+                {Array.from({ length: firstDay }).map((_, i) => (
+                  <div key={`empty-${i}`} className="p-2" />
+                ))}
+
+                {/* Day cells */}
+                {Array.from({ length: daysInMonth }).map((_, i) => {
+                  const day = i + 1;
+                  const dayEvents = eventsByDay[day] || [];
+                  const isToday =
+                    day === now.getDate() &&
+                    month === now.getMonth() &&
+                    year === now.getFullYear();
+
+                  return (
+                    <div
+                      key={day}
+                      className={`min-h-[80px] rounded-lg border p-1.5 ${
+                        isToday ? "border-primary bg-primary/5" : "border-transparent"
+                      }`}
+                    >
+                      <p
+                        className={`text-xs font-medium mb-1 ${
+                          isToday ? "text-primary" : "text-muted-foreground"
+                        }`}
+                      >
+                        {day}
+                      </p>
+                      {dayEvents.slice(0, 2).map((e: any) => (
+                        <div
+                          key={e.id}
+                          className="mb-0.5 truncate rounded bg-primary/10 px-1 py-0.5 text-[10px] font-medium text-primary"
+                          title={e.title}
+                        >
+                          {e.title}
+                        </div>
+                      ))}
+                      {dayEvents.length > 2 && (
+                        <p className="text-[10px] text-muted-foreground">
+                          +{dayEvents.length - 2} más
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Upcoming sidebar */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Próximos 7 días</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {upcoming.length === 0 ? (
               <div className="flex flex-col items-center py-8">
                 <CalendarDays className="mb-3 h-8 w-8 text-muted-foreground/50" />
-                <p className="text-sm text-muted-foreground">
-                  No hay eventos para este día.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3"
-                  onClick={() => setDialogOpen(true)}
-                >
-                  <Plus className="mr-2 h-3 w-3" />
-                  Agregar evento
-                </Button>
+                <p className="text-sm text-muted-foreground">Sin eventos próximos</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {eventsForDate.map((event: any) => (
-                  <div
-                    key={event.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <CalendarDays className="h-4 w-4 text-blue-500" />
-                      <div>
-                        <p className="text-sm font-medium">{event.title}</p>
-                        {event.description && (
-                          <p className="text-xs text-muted-foreground line-clamp-1">
-                            {event.description}
-                          </p>
-                        )}
+                {upcoming.map((e: any) => (
+                  <div key={e.id} className="flex items-start justify-between gap-2 rounded-lg border p-3">
+                    <div className="flex items-start gap-2 min-w-0">
+                      <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{e.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(e.date).toLocaleDateString("es-AR", {
+                            weekday: "short",
+                            day: "numeric",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                        <Badge variant="outline" className="mt-1 text-[10px]">
+                          {e.format || "post"}
+                        </Badge>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline">{event.format}</Badge>
-                      <Badge
-                        variant={
-                          event.status === "published"
-                            ? "default"
-                            : event.status === "cancelled"
-                            ? "destructive"
-                            : "secondary"
-                        }
-                      >
-                        {event.status === "published"
-                          ? "Publicado"
-                          : event.status === "cancelled"
-                          ? "Cancelado"
-                          : "Programado"}
-                      </Badge>
-                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      onClick={() => setDeleteTarget(e.id)}
+                    >
+                      <Trash2 className="h-3 w-3 text-destructive" />
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -289,69 +383,14 @@ function CalendarioContent() {
         </Card>
       </div>
 
-      {/* Pending approvals section */}
-      {pendingProposals && pendingProposals.length > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Clock className="h-4 w-4 text-amber-500" />
-                Propuestas pendientes de aprobación
-              </CardTitle>
-              <Badge variant="secondary">{pendingProposals.length}</Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {pendingProposals.map((p: any) => (
-                <div
-                  key={p.id}
-                  className="flex items-center justify-between rounded-lg border p-4"
-                >
-                  <div className="flex-1 min-w-0 mr-4">
-                    <p className="text-sm font-medium">{p.title || "Sin título"}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {p.dialogue_sessions?.topic || "Sin tema"} · {p.format || "post"}
-                    </p>
-                    {p.hook && (
-                      <p className="mt-1 text-xs text-muted-foreground italic line-clamp-1">
-                        Hook: {p.hook}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => handleApprove(p.id)}
-                      disabled={approveProposal.isPending}
-                    >
-                      <CheckCircle className="mr-1 h-3 w-3" />
-                      Aprobar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setRejectTarget(p.id)}
-                    >
-                      <XCircle className="mr-1 h-3 w-3" />
-                      Rechazar
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <ConfirmDialog
-        open={!!rejectTarget}
-        onOpenChange={(open) => !open && setRejectTarget(null)}
-        title="Rechazar propuesta"
-        description="¿Estás seguro de que querés rechazar esta propuesta? Se guardará el motivo para aprendizaje futuro."
-        confirmText="Rechazar"
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Eliminar evento"
+        description="¿Estás seguro de que querés eliminar este evento del calendario?"
+        confirmText="Eliminar"
         variant="destructive"
-        onConfirm={handleReject}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget)}
       />
     </div>
   );

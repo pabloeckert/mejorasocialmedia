@@ -224,16 +224,21 @@ mejorasocialmedia/
 | API keys (Secrets) | 🔲 | Groq, DeepSeek, Gemini pendientes |
 | PostgREST schema cache | ❌ | Tablas existen pero API no las reconoce (ver bloqueadores) |
 
-### 🔲 ETAPAS 3-6: PENDIENTES
+### Estado de Etapas (29/04/2026)
 
-| Etapa | Descripción | Estado |
-|---|---|---|
-| ETAPA 1 | Activar Backend (secrets + deploy functions) | 🔄 En progreso |
-| ETAPA 2 | Conectar y probar end-to-end | 🔲 Pendiente |
-| ETAPA 3 | Publicador y Calendario | 🔲 Pendiente |
-| ETAPA 4 | Monitor de KPIs | 🔲 Pendiente |
-| ETAPA 5 | Bucle de Aprendizaje | 🔲 Pendiente |
-| ETAPA 6 | Polish, Auth y Escala | 🔲 Pendiente |
+| Etapa | Descripción | Estado | Quién |
+|---|---|---|---|
+| ETAPA 0 | Seguridad y Limpieza | ✅ COMPLETA | AI |
+| ETAPA 1 | Activar Backend (código) | ✅ CÓDIGO LISTO | AI |
+| ETAPA 1 | Activar Backend (deploy) | ⏳ BLOQUEADO | USUARIO |
+| ETAPA 2 | Conectar E2E (código) | ✅ CÓDIGO LISTO | AI |
+| ETAPA 2 | Conectar E2E (testing) | ⏳ BLOQUEADO | USUARIO |
+| ETAPA 3 | UX, Polish y Onboarding | ✅ COMPLETA | AI |
+| ETAPA 4 | Calendario y Aprobación | ✅ COMPLETA | AI |
+| ETAPA 4 | Publicador automático | ⏳ BLOQUEADO | USUARIO (Instagram API) |
+| ETAPA 5 | Monitor de KPIs | ⏳ BLOQUEADO | USUARIO (Instagram Business) |
+| ETAPA 6 | Bucle de Aprendizaje | 🔲 Pendiente | — |
+| ETAPA 7 | Escala y Monetización | 🔲 Post-MVP | — |
 
 ---
 
