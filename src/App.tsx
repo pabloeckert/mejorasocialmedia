@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { Onboarding } from "@/components/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import Boveda from "./pages/Boveda";
 import MesaDialogo from "./pages/MesaDialogo";
@@ -31,6 +32,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <Onboarding />
         <ErrorBoundary>
           <Routes>
             <Route element={<AppLayout />}>

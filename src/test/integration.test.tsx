@@ -1,0 +1,234 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter } from "react-router-dom";
+
+// ═══════════════════════════════════════
+// Onboarding Tests
+// ═══════════════════════════════════════
+
+describe("Onboarding Component", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("exports Onboarding component", async () => {
+    const mod = await import("@/components/Onboarding");
+    expect(mod.Onboarding).toBeDefined();
+    expect(typeof mod.Onboarding).toBe("function");
+  });
+});
+
+// ═══════════════════════════════════════
+// ErrorBoundary Tests
+// ═══════════════════════════════════════
+
+describe("ErrorBoundary Component", () => {
+  it("renders children when no error", async () => {
+    const { ErrorBoundary } = await import("@/components/ErrorBoundary");
+    render(
+      <ErrorBoundary>
+        <div>Test content</div>
+      </ErrorBoundary>
+    );
+    expect(screen.getByText("Test content")).toBeInTheDocument();
+  });
+
+  it("renders fallback when error occurs", async () => {
+    const { ErrorBoundary } = await import("@/components/ErrorBoundary");
+
+    const ThrowError = () => {
+      throw new Error("Test error");
+    };
+
+    // Suppress console.error for this test
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(
+      <ErrorBoundary>
+        <ThrowError />
+      </ErrorBoundary>
+    );
+
+    expect(screen.getByText("Algo salió mal")).toBeInTheDocument();
+    expect(screen.getByText("Test error")).toBeInTheDocument();
+    expect(screen.getByText("Reintentar")).toBeInTheDocument();
+
+    spy.mockRestore();
+  });
+});
+
+// ═══════════════════════════════════════
+// ConfirmDialog Tests
+// ═══════════════════════════════════════
+
+describe("ConfirmDialog Component", () => {
+  it("exports ConfirmDialog component", async () => {
+    const mod = await import("@/components/ConfirmDialog");
+    expect(mod.ConfirmDialog).toBeDefined();
+    expect(typeof mod.ConfirmDialog).toBe("function");
+  });
+});
+
+// ═══════════════════════════════════════
+// Laboratorio Page Tests
+// ═══════════════════════════════════════
+
+describe("Laboratorio Page", () => {
+  function renderWithProviders(ui: React.ReactElement) {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>{ui}</BrowserRouter>
+      </QueryClientProvider>
+    );
+  }
+
+  it("renders the heading", async () => {
+    const { default: Laboratorio } = await import("@/pages/Laboratorio");
+    renderWithProviders(<Laboratorio />);
+    expect(screen.getByText("Laboratorio de Contenido")).toBeInTheDocument();
+  });
+
+  it("renders empty state initially", async () => {
+    const { default: Laboratorio } = await import("@/pages/Laboratorio");
+    renderWithProviders(<Laboratorio />);
+    expect(screen.getByText("Laboratorio vacío")).toBeInTheDocument();
+  });
+
+  it("has idea textarea", async () => {
+    const { default: Laboratorio } = await import("@/pages/Laboratorio");
+    renderWithProviders(<Laboratorio />);
+    const textarea = screen.getByPlaceholderText(/Quiero compartir tips/);
+    expect(textarea).toBeInTheDocument();
+  });
+
+  it("has generate button", async () => {
+    const { default: Laboratorio } = await import("@/pages/Laboratorio");
+    renderWithProviders(<Laboratorio />);
+    expect(screen.getByText("Generar contenido")).toBeInTheDocument();
+  });
+});
+
+// ═══════════════════════════════════════
+// AI Service Additional Tests
+// ═══════════════════════════════════════
+
+describe("AI Service — additional", () => {
+  const mockFetch = vi.fn();
+  beforeEach(() => {
+    vi.resetModules();
+    vi.stubGlobal("fetch", mockFetch);
+    vi.stubEnv("VITE_SUPABASE_URL", "https://test.supabase.co");
+    vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", "test-key");
+    mockFetch.mockReset();
+  });
+
+  it("searchVault sends correct action", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ results: ["chunk1"] }),
+    });
+
+    const { searchVault } = await import("@/services/ai");
+    const result = await searchVault("test query", 3);
+
+    const callBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(callBody.action).toBe("search");
+    expect(callBody.query).toBe("test query");
+    expect(callBody.limit).toBe(3);
+  });
+
+  it("processDocument sends correct documentId", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ documentId: "abc", chunksCreated: 3, totalTokens: 50 }),
+    });
+
+    const { processDocument } = await import("@/services/ai");
+    await processDocument("abc");
+
+    const callBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(callBody.action).toBe("process");
+    expect(callBody.documentId).toBe("abc");
+  });
+});
+
+// ═══════════════════════════════════════
+// Supabase Service — Additional CRUD Tests
+// ═══════════════════════════════════════
+
+const { mockFrom: mockFrom2, mockStorageFrom: mockStorageFrom2 } = vi.hoisted(() => {
+  const chain = () => {
+    const obj: Record<string, any> = {};
+    const methods = ["select", "eq", "order", "single", "limit", "insert", "update", "delete"];
+    methods.forEach((m) => {
+      obj[m] = vi.fn(() => obj);
+    });
+    return obj;
+  };
+
+  return {
+    mockFrom: vi.fn(() => chain()),
+    mockStorageFrom: vi.fn(() => ({
+      upload: vi.fn(),
+      remove: vi.fn(),
+      download: vi.fn(),
+    })),
+  };
+});
+
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: () => ({
+    from: mockFrom2,
+    storage: { from: mockStorageFrom2 },
+  }),
+}));
+
+describe("Supabase Service — CRUD operations", () => {
+  beforeEach(() => {
+    vi.stubEnv("VITE_SUPABASE_URL", "https://test.supabase.co");
+    vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", "test-key");
+    mockFrom2.mockClear();
+    mockStorageFrom2.mockClear();
+  });
+
+  it("documentsApi.get calls eq('id', id)", async () => {
+    const { documentsApi } = await import("@/services/supabase");
+    const chain = documentsApi.get("test-id");
+    expect(mockFrom2).toHaveBeenCalledWith("documents");
+    expect(chain.eq).toHaveBeenCalledWith("id", "test-id");
+    expect(chain.single).toHaveBeenCalled();
+  });
+
+  it("dialogueApi.getMessages calls eq + order", async () => {
+    const { dialogueApi } = await import("@/services/supabase");
+    const chain = dialogueApi.getMessages("session-123");
+    expect(mockFrom2).toHaveBeenCalledWith("dialogue_messages");
+    expect(chain.eq).toHaveBeenCalledWith("session_id", "session-123");
+  });
+
+  it("proposalsApi.approve calls update with status", async () => {
+    const { proposalsApi } = await import("@/services/supabase");
+    const chain = proposalsApi.approve("prop-123");
+    expect(mockFrom2).toHaveBeenCalledWith("proposals");
+    expect(chain.update).toHaveBeenCalledWith({ status: "approved" });
+    expect(chain.eq).toHaveBeenCalledWith("id", "prop-123");
+  });
+
+  it("proposalsApi.reject includes rejection reason", async () => {
+    const { proposalsApi } = await import("@/services/supabase");
+    const chain = proposalsApi.reject("prop-123", "Off brand");
+    expect(mockFrom2).toHaveBeenCalledWith("proposals");
+    expect(chain.update).toHaveBeenCalledWith({ status: "rejected", rejection_reason: "Off brand" });
+  });
+
+  it("proposalsApi.schedule sets status and date", async () => {
+    const { proposalsApi } = await import("@/services/supabase");
+    const chain = proposalsApi.schedule("prop-123", "2026-05-01T10:00:00Z");
+    expect(mockFrom2).toHaveBeenCalledWith("proposals");
+    expect(chain.update).toHaveBeenCalledWith({ status: "scheduled", scheduled_at: "2026-05-01T10:00:00Z" });
+  });
+});

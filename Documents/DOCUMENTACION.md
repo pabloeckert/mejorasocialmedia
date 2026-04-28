@@ -844,9 +844,44 @@ VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGci...
 - ✅ DOCUMENTACION.md actualizado a v5.0
 - ✅ Referencia al PLAN-OPTIMIZADO.md integrada
 
+**Frontend — Laboratorio funcional:**
+- ✅ Ya no es placeholder — genera contenido real vía orchestrator
+- ✅ Input de descripción + botón "Generar propuesta"
+- ✅ Muestra estrategia, contenido y evaluación del crítico
+- ✅ Botón copiar por sección
+- ✅ Lista de propuestas recientes con botón aprobar
+- ✅ Loading state con badges de los 3 agentes
+
+**Frontend — Onboarding Wizard:**
+- ✅ Nuevo componente `src/components/Onboarding.tsx` (3 pasos)
+- ✅ Se muestra automáticamente al primer visitante
+- ✅ Paso 1: Bienvenida + explicación de los 3 agentes
+- ✅ Paso 2: Bóveda de Conocimiento (detecta si ya tiene docs)
+- ✅ Paso 3: Mesa de Diálogo (con ejemplo de topic)
+- ✅ Barra de progreso visual
+- ✅ Botón "Saltar tutorial"
+- ✅ Se guarda en localStorage para no mostrar de nuevo
+
+**Frontend — Dashboard mejorado:**
+- ✅ Banner "Quick Start" para nuevos usuarios (sin docs)
+- ✅ Empty states con CTAs contextuales
+- ✅ Botón "Crear nueva sesión" en aprobaciones vacías
+- ✅ Envuelto en ErrorBoundary
+
+**Tests:**
+- ✅ ErrorBoundary tests (3 tests)
+- ✅ ConfirmDialog tests (4 tests)
+- ✅ Total: 43 tests pasando (era 21)
+
+**Backend — Migración SQL:**
+- ✅ `003_indexes_and_constraints.sql` creado
+- ✅ 14 índices para queries frecuentes (status, session_id, created_at, etc.)
+- ✅ CHECK constraints para enums (status, format, rule_type)
+- ✅ Documentación de ajuste IVFFlat para datasets pequeños
+
 **Build & Tests:**
-- ✅ Build exitoso (4.30s, sin errores)
-- ✅ 21 tests pasando
+- ✅ Build exitoso (4.31s, sin errores)
+- ✅ 43 tests pasando (5 test files)
 
 ---
 

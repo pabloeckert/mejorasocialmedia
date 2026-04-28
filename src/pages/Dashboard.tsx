@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, MessageSquare, Image, CalendarDays, CheckCircle, Clock } from "lucide-react";
+import { FileText, MessageSquare, Image, CalendarDays, Clock, Zap, ArrowRight } from "lucide-react";
 import { useDocuments } from "@/hooks/useVault";
 import { useDialogueSessions } from "@/hooks/useDialogue";
 import { usePendingProposals, useProposals } from "@/hooks/useProposals";
@@ -7,13 +7,24 @@ import { useCalendarEvents } from "@/hooks/useMetrics";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export default function Dashboard() {
+  return (
+    <ErrorBoundary>
+      <DashboardContent />
+    </ErrorBoundary>
+  );
+}
+
+function DashboardContent() {
   const { data: documents } = useDocuments();
   const { data: sessions } = useDialogueSessions();
   const { data: proposals } = useProposals();
   const { data: pendingProposals } = usePendingProposals();
   const { data: calendarEvents } = useCalendarEvents();
+
+  const hasData = (documents?.length ?? 0) > 0 || (sessions?.length ?? 0) > 0;
 
   const stats = [
     { label: "Documentos en Bóveda", value: String(documents?.length ?? 0), icon: FileText, href: "/boveda" },
@@ -31,6 +42,30 @@ export default function Dashboard() {
         </p>
       </div>
 
+      {/* Quick start banner for new users */}
+      {!hasData && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="flex items-center gap-4 p-6">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+              <Zap className="h-6 w-6 text-primary" />
+            </div>
+            <div className="flex-1">
+              <p className="font-medium">Empezá subiendo documentos de marca</p>
+              <p className="text-sm text-muted-foreground">
+                Los agentes necesitan contexto sobre tu marca para generar contenido estratégico.
+              </p>
+            </div>
+            <Link to="/boveda">
+              <Button>
+                Subir documentos
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <Link key={stat.label} to={stat.href}>
@@ -59,9 +94,20 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           {!pendingProposals || pendingProposals.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No hay contenido pendiente de aprobación.
-            </p>
+            <div className="flex flex-col items-center py-8">
+              <Clock className="mb-3 h-8 w-8 text-muted-foreground/50" />
+              <p className="text-sm text-muted-foreground">
+                No hay contenido pendiente de aprobación.
+              </p>
+              {hasData && (
+                <Link to="/mesa" className="mt-3">
+                  <Button variant="outline" size="sm">
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    Crear nueva sesión
+                  </Button>
+                </Link>
+              )}
+            </div>
           ) : (
             <div className="space-y-3">
               {pendingProposals.slice(0, 5).map((p: any) => (
@@ -75,7 +121,14 @@ export default function Dashboard() {
                       </p>
                     </div>
                   </div>
-                  <Badge variant="outline">{p.format || "post"}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{p.format || "post"}</Badge>
+                    <Link to="/laboratorio">
+                      <Button variant="ghost" size="sm">
+                        Ver
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
               ))}
               {pendingProposals.length > 5 && (
@@ -97,9 +150,13 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           {!calendarEvents || calendarEvents.length === 0 ? (
-            <div className="flex h-48 items-center justify-center">
+            <div className="flex h-48 flex-col items-center justify-center">
+              <CalendarDays className="mb-3 h-8 w-8 text-muted-foreground/50" />
               <p className="text-sm text-muted-foreground">
-                Conecta tu calendario para ver publicaciones programadas.
+                No hay publicaciones programadas.
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground/70">
+                Creá contenido en la Mesa de Diálogo y programalo desde ahí.
               </p>
             </div>
           ) : (
