@@ -6,6 +6,7 @@ import {
   FlaskConical,
   Settings,
   CalendarDays,
+  FileCheck,
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,6 +16,7 @@ const navItems = [
   { label: "Bóveda", icon: BookOpen, path: "/boveda" },
   { label: "Mesa de Diálogo", icon: MessageSquare, path: "/mesa" },
   { label: "Laboratorio", icon: FlaskConical, path: "/laboratorio" },
+  { label: "Propuestas", icon: FileCheck, path: "/propuestas" },
   { label: "Calendario", icon: CalendarDays, path: "/calendario" },
   { label: "Configuración", icon: Settings, path: "/configuracion" },
 ];

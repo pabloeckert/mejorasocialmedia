@@ -1,13 +1,29 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, MessageSquare, Image, CalendarDays, Clock, Zap, ArrowRight } from "lucide-react";
+import { FileText, MessageSquare, Image, CalendarDays, Clock, Zap, ArrowRight, TrendingUp } from "lucide-react";
 import { useDocuments } from "@/hooks/useVault";
 import { useDialogueSessions } from "@/hooks/useDialogue";
 import { usePendingProposals, useProposals } from "@/hooks/useProposals";
-import { useCalendarEvents } from "@/hooks/useMetrics";
+import { useCalendarEvents, useLatestMetrics } from "@/hooks/useMetrics";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
+
+const COLORS = ["#8b5cf6", "#06b6d4", "#f59e0b", "#ef4444", "#10b981"];
 
 export default function Dashboard() {
   return (
@@ -23,6 +39,7 @@ function DashboardContent() {
   const { data: proposals } = useProposals();
   const { data: pendingProposals } = usePendingProposals();
   const { data: calendarEvents } = useCalendarEvents();
+  const { data: metrics } = useLatestMetrics();
 
   const hasData = (documents?.length ?? 0) > 0 || (sessions?.length ?? 0) > 0;
 
@@ -30,8 +47,35 @@ function DashboardContent() {
     { label: "Documentos en Bóveda", value: String(documents?.length ?? 0), icon: FileText, href: "/boveda" },
     { label: "Diálogos creados", value: String(sessions?.length ?? 0), icon: MessageSquare, href: "/mesa" },
     { label: "Contenidos generados", value: String(proposals?.length ?? 0), icon: Image, href: "/laboratorio" },
-    { label: "Publicaciones programadas", value: String(calendarEvents?.length ?? 0), icon: CalendarDays, href: "/laboratorio" },
+    { label: "Publicaciones programadas", value: String(calendarEvents?.length ?? 0), icon: CalendarDays, href: "/calendario" },
   ];
+
+  // Prepare chart data from metrics
+  const engagementData = metrics?.slice(0, 7).reverse().map((m: any) => ({
+    name: m.proposals?.title?.slice(0, 15) || "Post",
+    engagement: Math.round((m.engagement_rate || 0) * 100) / 100,
+    likes: m.likes || 0,
+    reach: m.reach || 0,
+  })) || [];
+
+  // Format distribution from proposals
+  const formatCounts: Record<string, number> = {};
+  proposals?.forEach((p: any) => {
+    const format = p.format || "post";
+    formatCounts[format] = (formatCounts[format] || 0) + 1;
+  });
+  const formatData = Object.entries(formatCounts).map(([name, value]) => ({ name, value }));
+
+  // Status distribution
+  const statusCounts: Record<string, number> = {};
+  proposals?.forEach((p: any) => {
+    const status = p.status || "pending";
+    statusCounts[status] = (statusCounts[status] || 0) + 1;
+  });
+  const statusData = Object.entries(statusCounts).map(([name, value]) => ({
+    name: name === "pending" ? "Pendiente" : name === "approved" ? "Aprobado" : name === "rejected" ? "Rechazado" : name,
+    value,
+  }));
 
   return (
     <div className="space-y-8">
@@ -82,6 +126,87 @@ function DashboardContent() {
             </Card>
           </Link>
         ))}
+      </div>
+
+      {/* Charts row */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Engagement chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Engagement por post
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {engagementData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={engagementData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="name" className="text-xs" />
+                  <YAxis className="text-xs" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                      fontSize: "12px",
+                    }}
+                  />
+                  <Bar dataKey="engagement" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Engagement %" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-[250px] items-center justify-center">
+                <div className="text-center">
+                  <TrendingUp className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
+                  <p className="text-sm text-muted-foreground">
+                    Los gráficos aparecerán cuando haya métricas de posts.
+                  </p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Format distribution */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Distribución por formato</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {formatData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={formatData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {formatData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-[250px] items-center justify-center">
+                <div className="text-center">
+                  <Image className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
+                  <p className="text-sm text-muted-foreground">
+                    Generá contenido para ver la distribución por formato.
+                  </p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Pending approvals */}
@@ -155,21 +280,25 @@ function DashboardContent() {
               <p className="text-sm text-muted-foreground">
                 No hay publicaciones programadas.
               </p>
-              <p className="mt-1 text-xs text-muted-foreground/70">
-                Creá contenido en la Mesa de Diálogo y programalo desde ahí.
-              </p>
+              <Link to="/calendario" className="mt-3">
+                <Button variant="outline" size="sm">
+                  <CalendarDays className="mr-2 h-3 w-3" />
+                  Ir al calendario
+                </Button>
+              </Link>
             </div>
           ) : (
             <div className="space-y-2">
               {calendarEvents.slice(0, 7).map((e: any) => (
                 <div key={e.id} className="flex items-center gap-3 rounded-lg border p-3">
                   <CalendarDays className="h-4 w-4 text-blue-500" />
-                  <div>
+                  <div className="flex-1">
                     <p className="text-sm font-medium">{e.title}</p>
                     <p className="text-xs text-muted-foreground">
                       {new Date(e.date).toLocaleDateString("es-AR")}
                     </p>
                   </div>
+                  <Badge variant="outline">{e.format}</Badge>
                 </div>
               ))}
             </div>

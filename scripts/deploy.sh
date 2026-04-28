@@ -14,7 +14,7 @@ echo "======================================="
 # 1. Verificar login
 echo ""
 echo "1. Verificando login en Supabase..."
-if ! npx supabase projects list &>/dev/null; then
+if ! npx supabase projects list &>/dev/null 2>&1; then
   echo "❌ No estás logueado. Ejecutá:"
   echo "   npx supabase login"
   echo "   (te dará un token, pegalo acá)"
@@ -31,24 +31,26 @@ npx supabase link --project-ref "$PROJECT_REF" 2>/dev/null || echo "Ya linkeado"
 echo ""
 echo "3. Deployando Edge Functions..."
 
-echo "  → ai-gateway..."
-npx supabase functions deploy ai-gateway --project-ref "$PROJECT_REF"
+FUNCTIONS=("ai-gateway" "orchestrator" "vault-process" "metrics-collector" "rule-engine")
 
-echo "  → orchestrator..."
-npx supabase functions deploy orchestrator --project-ref "$PROJECT_REF"
-
-echo "  → vault-process..."
-npx supabase functions deploy vault-process --project-ref "$PROJECT_REF"
+for fn in "${FUNCTIONS[@]}"; do
+  echo "  → $fn..."
+  if npx supabase functions deploy "$fn" --project-ref "$PROJECT_REF" 2>&1; then
+    echo "  ✅ $fn — deploy OK"
+  else
+    echo "  ❌ $fn — deploy FALLO"
+  fi
+done
 
 echo ""
-echo "✅ Las 3 Edge Functions están deployadas!"
+echo "======================================="
 
-# 4. Verificar
+# 4. Verificar endpoints
 echo ""
 echo "4. Verificando endpoints..."
 SUPABASE_URL="https://${PROJECT_REF}.supabase.co"
 
-for fn in ai-gateway orchestrator vault-process; do
+for fn in "${FUNCTIONS[@]}"; do
   status=$(curl -s -o /dev/null -w "%{http_code}" \
     "$SUPABASE_URL/functions/v1/$fn" \
     -H "apikey: dummy" 2>/dev/null)
@@ -61,11 +63,22 @@ for fn in ai-gateway orchestrator vault-process; do
   fi
 done
 
+# 5. Verificar secrets
+echo ""
+echo "5. Verificando secrets configurados..."
+echo "  (Los secrets no se pueden verificar desde CLI por seguridad)"
+echo "  Verificar manualmente en: https://supabase.com/dashboard/project/$PROJECT_REF/settings/edge-functions"
+echo ""
+echo "  Secrets necesarios:"
+echo "    - GROQ_API_KEY"
+echo "    - DEEPSEEK_API_KEY"
+echo "    - HF_API_KEY"
+
 echo ""
 echo "======================================="
 echo "✅ Deploy completo!"
 echo ""
-echo "Próximo paso: configurar API keys:"
-echo "  npx supabase secrets set GROQ_API_KEY=tu_key --project-ref $PROJECT_REF"
-echo "  npx supabase secrets set DEEPSEEK_API_KEY=tu_key --project-ref $PROJECT_REF"
-echo "  npx supabase secrets set HF_API_KEY=tu_key --project-ref $PROJECT_REF"
+echo "Próximos pasos:"
+echo "  1. Verificar secrets en el dashboard"
+echo "  2. Ejecutar health check: bash scripts/health-check.sh ANON_KEY"
+echo "  3. Probar el sistema en https://util.mejoraok.com/MejoraSM/"

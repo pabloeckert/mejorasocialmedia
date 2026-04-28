@@ -22,6 +22,9 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Run tests
+        run: npm test
+
       - name: Build project
         run: npm run build
         env:
@@ -45,3 +48,15 @@ jobs:
             **/.git*/**
             **/node_modules/**
             **/.DS_Store
+
+      - name: Post-deploy health check
+        if: success()
+        run: |
+          echo "✅ Deploy completado. Verificando..."
+          sleep 10
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://util.mejoraok.com/MejoraSM/" 2>/dev/null)
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Sitio accesible (HTTP $STATUS)"
+          else
+            echo "⚠️ Sitio respondió con HTTP $STATUS"
+          fi

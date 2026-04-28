@@ -232,3 +232,77 @@ describe("Supabase Service — CRUD operations", () => {
     expect(chain.update).toHaveBeenCalledWith({ status: "scheduled", scheduled_at: "2026-05-01T10:00:00Z" });
   });
 });
+
+// ═══════════════════════════════════════
+// Calendario Page Tests
+// ═══════════════════════════════════════
+
+describe("Calendario Page", () => {
+  function renderWithProviders(ui: React.ReactElement) {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>{ui}</BrowserRouter>
+      </QueryClientProvider>
+    );
+  }
+
+  it("renders the heading", async () => {
+    const { default: Calendario } = await import("@/pages/Calendario");
+    renderWithProviders(<Calendario />);
+    expect(screen.getByText("Calendario Editorial")).toBeInTheDocument();
+  });
+
+  it("renders new event button", async () => {
+    const { default: Calendario } = await import("@/pages/Calendario");
+    renderWithProviders(<Calendario />);
+    expect(screen.getByText("Nuevo evento")).toBeInTheDocument();
+  });
+
+  it("renders weekday headers", async () => {
+    const { default: Calendario } = await import("@/pages/Calendario");
+    renderWithProviders(<Calendario />);
+    // Calendar renders month/year header
+    expect(screen.getByText(/abril de 2026|mayo de 2026|marzo de 2026/i)).toBeInTheDocument();
+  });
+
+  it("renders upcoming section", async () => {
+    const { default: Calendario } = await import("@/pages/Calendario");
+    renderWithProviders(<Calendario />);
+    expect(screen.getByText("Próximos 7 días")).toBeInTheDocument();
+  });
+});
+
+// ═══════════════════════════════════════
+// Propuestas Page Tests
+// ═══════════════════════════════════════
+
+describe("Propuestas Page", () => {
+  function renderWithProviders(ui: React.ReactElement) {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>{ui}</BrowserRouter>
+      </QueryClientProvider>
+    );
+  }
+
+  it("renders the heading", async () => {
+    const { default: Propuestas } = await import("@/pages/Propuestas");
+    renderWithProviders(<Propuestas />);
+    expect(screen.getByText("Propuestas de Contenido")).toBeInTheDocument();
+  });
+
+  it("renders tabs", async () => {
+    const { default: Propuestas } = await import("@/pages/Propuestas");
+    renderWithProviders(<Propuestas />);
+    expect(screen.getByText("Pendientes")).toBeInTheDocument();
+    expect(screen.getByText("Aprobadas")).toBeInTheDocument();
+    expect(screen.getByText("Programadas")).toBeInTheDocument();
+    expect(screen.getByText("Todas")).toBeInTheDocument();
+  });
+});

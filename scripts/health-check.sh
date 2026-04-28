@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================
 # Health Check — MejoraSM
-# Ejecutar: bash scripts/health-check.sh
+# Ejecutar: bash scripts/health-check.sh ANON_KEY
 # ============================================
 
 PROJECT_REF="exnjyxwmxknvzploeaex"
@@ -20,53 +20,78 @@ if [ -z "$ANON_KEY" ]; then
   exit 1
 fi
 
+PASS=0
+FAIL=0
+WARN=0
+
+check() {
+  local name="$1"
+  local result="$2"  # ok, fail, warn
+  local detail="$3"
+  
+  if [ "$result" = "ok" ]; then
+    echo "  ✅ $name${detail:+ — $detail}"
+    ((PASS++))
+  elif [ "$result" = "fail" ]; then
+    echo "  ❌ $name${detail:+ — $detail}"
+    ((FAIL++))
+  else
+    echo "  ⚠️  $name${detail:+ — $detail}"
+    ((WARN++))
+  fi
+}
+
 echo ""
-
-# 1. Conexión a Supabase
-echo -n "1. Conexión a Supabase... "
+echo "─── 1. Conexión a Supabase ───"
 code=$(curl -s -o /dev/null -w "%{http_code}" "$SUPABASE_URL/rest/v1/" -H "apikey: $ANON_KEY")
-[ "$code" = "200" ] && echo "✅ OK (HTTP $code)" || echo "❌ FAIL (HTTP $code)"
+if [ "$code" = "200" ]; then
+  check "Conexión REST" "ok" "HTTP $code"
+else
+  check "Conexión REST" "fail" "HTTP $code"
+fi
 
-# 2. Verificar tablas
-for table in documents doc_chunks agent_config dialogue_sessions dialogue_messages proposals calendar_events metrics success_rules; do
-  echo -n "2. Tabla '$table'... "
+echo ""
+echo "─── 2. Tablas ───"
+TABLES="documents doc_chunks agent_config dialogue_sessions dialogue_messages proposals calendar_events metrics success_rules"
+for table in $TABLES; do
   resp=$(curl -s "$SUPABASE_URL/rest/v1/${table}?select=id&limit=1" \
     -H "apikey: $ANON_KEY" \
     -H "Authorization: Bearer $ANON_KEY" 2>/dev/null)
   if echo "$resp" | grep -q "PGRST205"; then
-    echo "❌ NO RECONOCIDA por PostgREST"
+    check "Tabla '$table'" "fail" "NO RECONOCIDA por PostgREST"
   elif echo "$resp" | grep -q "\["; then
-    echo "✅ OK"
+    check "Tabla '$table'" "ok"
   else
-    echo "⚠️  Respuesta: ${resp:0:80}"
+    check "Tabla '$table'" "warn" "${resp:0:60}"
   fi
 done
 
-# 3. Verificar Edge Functions
 echo ""
-for fn in ai-gateway orchestrator vault-process; do
-  echo -n "3. Edge Function '$fn'... "
+echo "─── 3. Edge Functions ───"
+for fn in ai-gateway orchestrator vault-process publisher metrics-collector; do
   code=$(curl -s -o /dev/null -w "%{http_code}" \
     "$SUPABASE_URL/functions/v1/$fn" \
     -H "apikey: $ANON_KEY" 2>/dev/null)
   case "$code" in
-    401|405|400) echo "✅ Activo (HTTP $code — necesita POST con body)" ;;
-    404)         echo "❌ NO deployada (HTTP 404)" ;;
-    *)           echo "⚠️  HTTP $code" ;;
+    401|405|400) check "Function '$fn'" "ok" "Activo (HTTP $code)" ;;
+    404)         check "Function '$fn'" "fail" "NO deployada" ;;
+    *)           check "Function '$fn'" "warn" "HTTP $code" ;;
   esac
 done
 
-# 4. Verificar Storage
 echo ""
-echo -n "4. Storage bucket 'vault'... "
+echo "─── 4. Storage ───"
 resp=$(curl -s "$SUPABASE_URL/storage/v1/bucket" \
   -H "apikey: $ANON_KEY" \
   -H "Authorization: Bearer $ANON_KEY" 2>/dev/null)
-echo "$resp" | grep -q "vault" && echo "✅ OK" || echo "❌ No encontrado"
+if echo "$resp" | grep -q "vault"; then
+  check "Bucket 'vault'" "ok"
+else
+  check "Bucket 'vault'" "fail" "No encontrado"
+fi
 
-# 5. Verificar función SQL match_documents
 echo ""
-echo -n "5. Función SQL 'match_documents'... "
+echo "─── 5. Función SQL match_documents ───"
 resp=$(curl -s "$SUPABASE_URL/rest/v1/rpc/match_documents" \
   -X POST \
   -H "apikey: $ANON_KEY" \
@@ -74,13 +99,54 @@ resp=$(curl -s "$SUPABASE_URL/rest/v1/rpc/match_documents" \
   -H "Content-Type: application/json" \
   -d '{"query_embedding": [0.1, 0.2], "match_count": 1}' 2>/dev/null)
 if echo "$resp" | grep -q "dimension"; then
-  echo "⚠️  Función existe pero dimensión incorrecta (esperado: 384)"
+  check "match_documents()" "warn" "Función existe, dimensión incorrecta (esperado: 384)"
 elif echo "$resp" | grep -q "error\|Error"; then
-  echo "⚠️  ${resp:0:80}"
+  check "match_documents()" "warn" "${resp:0:60}"
 else
-  echo "✅ OK"
+  check "match_documents()" "ok"
+fi
+
+echo ""
+echo "─── 6. Agentes pre-seed ───"
+resp=$(curl -s "$SUPABASE_URL/rest/v1/agent_config?select=id" \
+  -H "apikey: $ANON_KEY" \
+  -H "Authorization: Bearer $ANON_KEY" 2>/dev/null)
+if echo "$resp" | grep -q "estratega" && echo "$resp" | grep -q "creativo" && echo "$resp" | grep -q "critico"; then
+  check "3 agentes (estratega, creativo, critico)" "ok"
+elif echo "$resp" | grep -q "\["; then
+  check "Agentes pre-seed" "warn" "Respuesta: ${resp:0:60}"
+else
+  check "Agentes pre-seed" "fail" "No encontrados"
+fi
+
+echo ""
+echo "─── 7. PostgREST Schema Cache ───"
+resp=$(curl -s "$SUPABASE_URL/rest/v1/" \
+  -H "apikey: $ANON_KEY" \
+  -H "Authorization: Bearer $ANON_KEY" 2>/dev/null)
+if echo "$resp" | grep -q "documents"; then
+  check "Schema cache" "ok" "PostgREST reconoce las tablas"
+else
+  check "Schema cache" "fail" "PostgREST NO reconoce las tablas — reiniciar proyecto"
 fi
 
 echo ""
 echo "=========================="
-echo "Health check completo."
+echo "📊 Resumen: ✅ $PASS pasaron | ❌ $FAIL fallaron | ⚠️  $WARN advertencias"
+echo ""
+
+if [ "$FAIL" -gt 0 ]; then
+  echo "🔴 Hay $FAIL problemas que requieren atención."
+  echo ""
+  echo "Acciones sugeridas:"
+  echo "  • Si PostgREST no reconoce tablas: reiniciar proyecto en Supabase Dashboard"
+  echo "  • Si Edge Functions fallan: bash scripts/deploy.sh"
+  echo "  • Si faltan API keys: configurar en Supabase Dashboard → Edge Functions → Secrets"
+  exit 1
+elif [ "$WARN" -gt 0 ]; then
+  echo "🟡 Hay $WARN advertencias. El sistema debería funcionar pero verificar."
+  exit 0
+else
+  echo "🟢 ¡Todo perfecto! El sistema está listo para usar."
+  exit 0
+fi

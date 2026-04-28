@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { calendarApi, metricsApi } from "@/services/supabase";
+import { supabase } from "@/services/supabase";
 
 // ═══════════════════════════════════════
 // CALENDARIO
@@ -26,6 +27,17 @@ export function useCreateCalendarEvent() {
       format: string;
       proposal_id?: string;
     }) => calendarApi.create(event),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["calendar-events"] }),
+  });
+}
+
+export function useDeleteCalendarEvent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("calendar_events").delete().eq("id", id);
+      if (error) throw error;
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["calendar-events"] }),
   });
 }

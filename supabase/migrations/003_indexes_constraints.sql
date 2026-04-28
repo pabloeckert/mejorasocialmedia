@@ -2,6 +2,21 @@
 -- Ejecutar en SQL Editor de Supabase DESPUÉS de 001_initial_schema.sql
 
 -- ═══════════════════════════════════════════
+-- COLUMNAS FALTANTES
+-- ═══════════════════════════════════════════
+
+-- metadata en proposals (para tracking de errores de publicación)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' AND table_name = 'proposals' AND column_name = 'metadata'
+  ) THEN
+    ALTER TABLE proposals ADD COLUMN metadata JSONB DEFAULT '{}';
+  END IF;
+END $$;
+
+-- ═══════════════════════════════════════════
 -- ÍNDICES PARA QUERIES FRECUENTES
 -- ═══════════════════════════════════════════
 

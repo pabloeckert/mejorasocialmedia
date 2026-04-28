@@ -28,6 +28,27 @@ vi.mock("@/hooks/useProposals", () => ({
 
 vi.mock("@/hooks/useMetrics", () => ({
   useCalendarEvents: () => ({ data: [{ id: "1", title: "Scheduled Post", date: "2026-05-01" }] }),
+  useLatestMetrics: () => ({ data: [] }),
+  useCreateCalendarEvent: () => ({ mutate: vi.fn() }),
+  useDeleteCalendarEvent: () => ({ mutate: vi.fn() }),
+  useSuccessRules: () => ({ data: [] }),
+  useProposalMetrics: () => ({ data: [] }),
+}));
+
+// Mock recharts to avoid SVG rendering issues in tests
+vi.mock("recharts", () => ({
+  BarChart: ({ children }: any) => <div data-testid="bar-chart">{children}</div>,
+  Bar: () => null,
+  XAxis: () => null,
+  YAxis: () => null,
+  CartesianGrid: () => null,
+  Tooltip: () => null,
+  ResponsiveContainer: ({ children }: any) => <div>{children}</div>,
+  LineChart: ({ children }: any) => <div data-testid="line-chart">{children}</div>,
+  Line: () => null,
+  PieChart: ({ children }: any) => <div data-testid="pie-chart">{children}</div>,
+  Pie: () => null,
+  Cell: () => null,
 }));
 
 function renderWithProviders(ui: React.ReactElement) {
@@ -59,7 +80,6 @@ describe("Dashboard Page", () => {
   it("renders stat cards with correct counts", async () => {
     const { default: Dashboard } = await import("@/pages/Dashboard");
     renderWithProviders(<Dashboard />);
-    // 1 document, 1 session, 1 proposal, 1 calendar event
     expect(screen.getByText("Documentos en Bóveda")).toBeInTheDocument();
     expect(screen.getByText("Diálogos creados")).toBeInTheDocument();
     expect(screen.getByText("Contenidos generados")).toBeInTheDocument();
@@ -85,7 +105,6 @@ describe("Dashboard Page", () => {
     const { default: Dashboard } = await import("@/pages/Dashboard");
     renderWithProviders(<Dashboard />);
     const links = screen.getAllByRole("link");
-    // At least 4 stat card links + "Ver todas" link
     expect(links.length).toBeGreaterThanOrEqual(4);
   });
 });
