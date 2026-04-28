@@ -11,6 +11,7 @@ import Boveda from "./pages/Boveda";
 import MesaDialogo from "./pages/MesaDialogo";
 import Laboratorio from "./pages/Laboratorio";
 import Configuracion from "./pages/Configuracion";
+import Calendario from "./pages/Calendario";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -41,6 +42,7 @@ const App = () => (
               <Route path="/mesa" element={<MesaDialogo />} />
               <Route path="/laboratorio" element={<Laboratorio />} />
               <Route path="/configuracion" element={<Configuracion />} />
+              <Route path="/calendario" element={<Calendario />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
