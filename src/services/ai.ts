@@ -4,11 +4,52 @@
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.warn("[ai.ts] Variables de entorno de Supabase no configuradas. Las funciones de IA no funcionarán.");
+}
+
 const headers = {
   "Content-Type": "application/json",
   Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-  apikey: SUPABASE_ANON_KEY,
+  apikey: SUPABASE_ANON_KEY ?? "",
 };
+
+// ═══════════════════════════════════════
+// ERROR HANDLING
+// ═══════════════════════════════════════
+
+class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+async function handleResponse<T>(res: Response, fallbackMsg: string): Promise<T> {
+  if (!res.ok) {
+    let errorMsg = fallbackMsg;
+    try {
+      const err = await res.json();
+      errorMsg = err.error || err.message || fallbackMsg;
+    } catch {
+      errorMsg = `${fallbackMsg} (HTTP ${res.status})`;
+    }
+
+    // Mensajes amigables según código de error
+    if (res.status === 401 || res.status === 403) {
+      errorMsg = "No tenés permisos para esta acción. Verificá la configuración.";
+    } else if (res.status === 429) {
+      errorMsg = "Demasiadas requests. Esperá un momento e intentá de nuevo.";
+    } else if (res.status >= 500) {
+      errorMsg = "El servidor no está disponible. Intentá de nuevo en unos minutos.";
+    }
+
+    throw new ApiError(errorMsg, res.status);
+  }
+  return res.json();
+}
 
 // ═══════════════════════════════════════
 // AI GATEWAY
@@ -27,13 +68,7 @@ export async function callAI(params: {
     headers,
     body: JSON.stringify(params),
   });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Error en AI Gateway");
-  }
-
-  return res.json();
+  return handleResponse(res, "Error al conectar con el proveedor de IA");
 }
 
 export async function generateEmbeddings(texts: string[]) {
@@ -42,90 +77,72 @@ export async function generateEmbeddings(texts: string[]) {
     headers,
     body: JSON.stringify({ action: "embed", texts }),
   });
-
-  const data = await res.json();
-  return data.embeddings as number[][];
+  const data = await handleResponse<{ embeddings: number[][] }>(res, "Error generando embeddings");
+  return data.embeddings;
 }
 
 // ═══════════════════════════════════════
 // ORCHESTRATOR (Mesa de Diálogo)
 // ═══════════════════════════════════════
 
-export async function startDialogue(topic: string) {
+export interface DialogueResult {
+  sessionId: string;
+  estrategia: string;
+  contenido: string;
+  evaluacion: { aprobado: boolean; feedback: string };
+  proposal: { hook: string; body: string; cta: string; hashtags: string[]; format: string };
+  aprobado: boolean;
+}
+
+export interface ContinueResult {
+  contenido: string;
+  evaluacion: { aprobado: boolean; feedback: string };
+  aprobado: boolean;
+}
+
+export async function startDialogue(topic: string): Promise<DialogueResult> {
   const res = await fetch(`${SUPABASE_URL}/functions/v1/orchestrator`, {
     method: "POST",
     headers,
     body: JSON.stringify({ action: "start", topic }),
   });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Error iniciando diálogo");
-  }
-
-  return res.json() as Promise<{
-    sessionId: string;
-    estrategia: string;
-    contenido: string;
-    evaluacion: { aprobado: boolean; feedback: string };
-    proposal: { hook: string; body: string; cta: string; hashtags: string[]; format: string };
-    aprobado: boolean;
-  }>;
+  return handleResponse(res, "Error iniciando el diálogo con los agentes");
 }
 
-export async function continueDialogue(sessionId: string, feedback: string) {
+export async function continueDialogue(sessionId: string, feedback: string): Promise<ContinueResult> {
   const res = await fetch(`${SUPABASE_URL}/functions/v1/orchestrator`, {
     method: "POST",
     headers,
     body: JSON.stringify({ action: "continue", sessionId, feedback }),
   });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Error continuando diálogo");
-  }
-
-  return res.json() as Promise<{
-    contenido: string;
-    evaluacion: { aprobado: boolean; feedback: string };
-    aprobado: boolean;
-  }>;
+  return handleResponse(res, "Error continuando el diálogo");
 }
 
 // ═══════════════════════════════════════
 // VAULT (Bóveda de Conocimiento)
 // ═══════════════════════════════════════
 
-export async function processDocument(documentId: string) {
+export interface ProcessResult {
+  documentId: string;
+  chunksCreated: number;
+  totalTokens: number;
+  withEmbeddings: boolean;
+}
+
+export async function processDocument(documentId: string): Promise<ProcessResult> {
   const res = await fetch(`${SUPABASE_URL}/functions/v1/vault-process`, {
     method: "POST",
     headers,
     body: JSON.stringify({ action: "process", documentId }),
   });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Error procesando documento");
-  }
-
-  return res.json() as Promise<{
-    documentId: string;
-    chunksCreated: number;
-    totalTokens: number;
-  }>;
+  return handleResponse(res, "Error procesando el documento");
 }
 
-export async function searchVault(query: string, limit = 5) {
+export async function searchVault(query: string, limit = 5): Promise<{ results: string[] }> {
   const res = await fetch(`${SUPABASE_URL}/functions/v1/vault-process`, {
     method: "POST",
     headers,
     body: JSON.stringify({ action: "search", query, limit }),
   });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Error buscando en bóveda");
-  }
-
-  return res.json() as Promise<{ results: string[] }>;
+  return handleResponse(res, "Error buscando en la bóveda");
 }

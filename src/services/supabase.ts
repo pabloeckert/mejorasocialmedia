@@ -6,7 +6,17 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+if (!supabaseUrl || !supabaseKey) {
+  console.error(
+    "[supabase] Variables de entorno no configuradas.\n" +
+    "Creá un archivo .env con:\n" +
+    "  VITE_SUPABASE_URL=https://tu-proyecto.supabase.co\n" +
+    "  VITE_SUPABASE_PUBLISHABLE_KEY=tu-anon-key\n" +
+    "En Vercel: Settings → Environment Variables"
+  );
+}
+
+export const supabase = createClient(supabaseUrl ?? "", supabaseKey ?? "");
 
 // ═══════════════════════════════════════
 // DOCUMENTOS (Bóveda)

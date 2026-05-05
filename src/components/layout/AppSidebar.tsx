@@ -65,7 +65,7 @@ export function AppSidebar() {
 
       {/* Footer */}
       <div className="border-t border-sidebar-border px-6 py-4">
-        <p className="text-xs text-muted-foreground">EDA v0.1 — MVP</p>
+        <p className="text-xs text-muted-foreground">EDA v1.0 — MejoraOK</p>
       </div>
     </aside>
   );
